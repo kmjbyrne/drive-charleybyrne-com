@@ -25,14 +25,14 @@ const specialItems = computed<NavigationMenuItem[]>(() => [
   {
     label: 'Starred',
     icon: 'i-lucide-star',
-    badge: { label: String(starredCount.value), color: 'neutral' as const, variant: 'subtle' as const },
+    ...(!props.collapsed && { badge: { label: String(starredCount.value), color: 'neutral' as const, variant: 'subtle' as const } }),
     active: special.value === 'starred',
     click: () => setSpecial('starred')
   },
   {
     label: 'Shared with me',
     icon: 'i-lucide-share-2',
-    badge: { label: '3', color: 'neutral' as const, variant: 'subtle' as const },
+    ...(!props.collapsed && { badge: { label: '3', color: 'neutral' as const, variant: 'subtle' as const } }),
     active: special.value === 'shared',
     click: () => setSpecial('shared')
   },
@@ -178,14 +178,6 @@ function toggleSpace(id: string) {
     >
       <div class="flex items-center mb-2">
         <span class="text-xs text-muted flex-1">1.2 GB of 50 GB</span>
-        <UButton
-          icon="i-lucide-panel-left-close"
-          variant="ghost"
-          color="neutral"
-          size="xs"
-          title="Collapse sidebar"
-          @click="sidebarCollapsed = true"
-        />
         <UColorModeButton size="xs" />
       </div>
       <UProgress
@@ -197,16 +189,8 @@ function toggleSpace(id: string) {
     </div>
     <div
       v-else
-      class="p-2 border-t border-default flex flex-col items-center gap-1"
+      class="p-2 border-t border-default flex justify-center"
     >
-      <UButton
-        icon="i-lucide-panel-left-open"
-        variant="ghost"
-        color="neutral"
-        size="xs"
-        title="Expand sidebar"
-        @click="sidebarCollapsed = false"
-      />
       <UColorModeButton size="xs" />
     </div>
   </div>

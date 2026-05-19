@@ -15,6 +15,25 @@ export default defineNuxtConfig({
     '/': { redirect: '/storage' }
   },
 
+  runtimeConfig: {
+    s3: {
+      bucket: '',
+      region: '',
+      endpoint: '',
+      accessKeyId: '',
+      secretAccessKey: ''
+    },
+    storage: {
+      quotaBytes: 21474836480
+    }
+  },
+
+  vite: {
+    optimizeDeps: {
+      include: ['superdoc']
+    }
+  },
+
   compatibilityDate: '2025-01-15',
 
   eslint: {

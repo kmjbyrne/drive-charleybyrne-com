@@ -66,7 +66,7 @@ const viewModes = [
       <UDashboardNavbar>
         <template #left>
           <div class="flex items-center gap-2">
-            <!-- Sidebar toggle: open slideover on mobile -->
+            <!-- Sidebar toggle: slideover on mobile, collapse on desktop -->
             <UButton
               icon="i-lucide-panel-left"
               variant="ghost"
@@ -75,6 +75,15 @@ const viewModes = [
               title="Toggle sidebar"
               class="lg:hidden"
               @click="sidebarOpen = true"
+            />
+            <UButton
+              :icon="sidebarCollapsed ? 'i-lucide-panel-left-open' : 'i-lucide-panel-left-close'"
+              variant="ghost"
+              color="neutral"
+              size="xs"
+              title="Toggle sidebar"
+              class="max-lg:hidden"
+              @click="sidebarCollapsed = !sidebarCollapsed"
             />
             <UButton
               icon="i-lucide-chevron-left"
@@ -165,7 +174,7 @@ const viewModes = [
         <!-- Tags view -->
         <div
           v-if="special === 'tags'"
-          class="flex-1 overflow-auto px-5 pt-2"
+          class="px-5 pt-2"
         >
           <div class="grid grid-cols-[repeat(auto-fill,minmax(200px,1fr))] gap-3">
             <button

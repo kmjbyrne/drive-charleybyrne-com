@@ -8,50 +8,53 @@ const emit = defineEmits<{
   close: []
 }>()
 
-const containerRef = ref<HTMLElement | null>(null)
+const editorRef = ref<HTMLElement | null>(null)
 const loading = ref(true)
 const error = ref<string | null>(null)
+let superdocInstance: any = null
 
 defineShortcuts({
   escape: () => emit('close')
 })
 
 onMounted(async () => {
-  if (!containerRef.value) return
+  if (!editorRef.value) return
 
   try {
-    const { renderAsync } = await import('docx-preview')
-    const response = await fetch(props.src)
+    const { SuperDoc } = await import('superdoc')
+    await import('superdoc/style.css')
 
+    const response = await fetch(props.src)
     if (!response.ok) {
       throw new Error(`Failed to fetch document: ${response.status}`)
     }
 
     const blob = await response.blob()
+    const file = new File([blob], props.fileName || 'document.docx')
 
-    await renderAsync(blob, containerRef.value, undefined, {
-      inWrapper: true,
-      ignoreWidth: false,
-      ignoreHeight: true,
-      ignoreFonts: false,
-      breakPages: false,
-      ignoreLastRenderedPageBreak: true,
-      experimental: true,
-      trimXmlDeclaration: true,
-      useBase64URL: true,
-      renderHeaders: true,
-      renderFooters: true,
-      renderFootnotes: true,
-      renderEndnotes: true
+    superdocInstance = new SuperDoc({
+      selector: `#${editorRef.value.id}`,
+      document: file
     })
   }
   catch (e) {
-    error.value = e instanceof Error ? e.message : 'Failed to render document'
+    error.value = e instanceof Error ? e.message : 'Failed to load document'
   }
   finally {
     loading.value = false
   }
 })
+
+onBeforeUnmount(() => {
+  if (superdocInstance?.destroy) {
+    superdocInstance.destroy()
+  }
+})
+
+async function handleExport() {
+  if (!superdocInstance) return
+  await superdocInstance.export()
+}
 </script>
 
 <template>
@@ -70,6 +73,14 @@ onMounted(async () => {
         </div>
       </div>
       <UButton
+        icon="i-lucide-download"
+        label="Export"
+        variant="ghost"
+        size="xs"
+        class="text-white hover:bg-white/10"
+        @click="handleExport"
+      />
+      <UButton
         icon="i-lucide-x"
         variant="ghost"
         size="xs"
@@ -78,26 +89,12 @@ onMounted(async () => {
       />
     </div>
 
-    <!-- Ribbon tabs -->
-    <div class="flex items-center px-4 bg-gray-100 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 text-sm shrink-0">
-      <span
-        v-for="(tab, i) in ['File', 'Home', 'Insert', 'Layout', 'References', 'Review', 'View', 'Help']"
-        :key="tab"
-        :class="[
-          'px-3 py-2 cursor-pointer border-b-2 transition-colors',
-          i === 1 ? 'font-semibold text-[#185abd] border-[#185abd]' : 'text-gray-600 dark:text-gray-400 border-transparent'
-        ]"
-      >
-        {{ tab }}
-      </span>
-    </div>
-
-    <!-- Document content -->
-    <div class="flex-1 overflow-auto bg-[#e7e8ea] dark:bg-gray-900">
+    <!-- Editor area -->
+    <div class="flex-1 relative overflow-hidden">
       <!-- Loading -->
       <div
         v-if="loading"
-        class="flex items-center justify-center h-full"
+        class="absolute inset-0 flex items-center justify-center bg-default z-10"
       >
         <div class="text-center">
           <UIcon
@@ -113,7 +110,7 @@ onMounted(async () => {
       <!-- Error -->
       <div
         v-if="error"
-        class="flex items-center justify-center h-full"
+        class="absolute inset-0 flex items-center justify-center bg-default z-10"
       >
         <UAlert
           icon="i-lucide-alert-circle"
@@ -123,51 +120,12 @@ onMounted(async () => {
         />
       </div>
 
-      <!-- Rendered document -->
+      <!-- SuperDoc editor container -->
       <div
-        ref="containerRef"
-        class="docx-viewer-container"
+        id="superdoc-editor"
+        ref="editorRef"
+        class="h-full w-full"
       />
-    </div>
-
-    <!-- Status bar -->
-    <div class="flex items-center px-4 py-1.5 bg-gray-100 dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 text-xs text-gray-500 gap-5 shrink-0">
-      <span>Preview mode</span>
-      <span class="flex items-center gap-1.5">
-        <span class="size-1.5 rounded-full bg-green-500" />
-        Read-only
-      </span>
-      <div class="flex-1" />
-      <span>100%</span>
     </div>
   </div>
 </template>
-
-<style>
-.docx-viewer-container {
-  display: flex;
-  justify-content: center;
-  padding: 24px 0;
-  min-height: 100%;
-}
-
-.docx-viewer-container .docx-wrapper {
-  background: transparent !important;
-  padding: 16px 0 !important;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  width: 100%;
-}
-
-.docx-viewer-container .docx-wrapper > section.docx {
-  background: white !important;
-  box-shadow: 0 0 0 1px #e5e7eb, 0 4px 12px rgba(0, 0, 0, 0.08) !important;
-  border-radius: 2px !important;
-  margin-bottom: 16px !important;
-  max-width: 860px;
-  width: 100%;
-  padding: 60px 72px !important;
-  min-height: auto !important;
-}
-</style>
