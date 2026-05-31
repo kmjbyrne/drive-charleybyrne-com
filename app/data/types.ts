@@ -1,4 +1,4 @@
-export type FileType = 'folder' | 'doc' | 'pdf' | 'image' | 'video' | 'design' | 'code' | 'zip'
+export type FileType = 'folder' | 'doc' | 'pdf' | 'image' | 'video' | 'audio' | 'markdown' | 'design' | 'code' | 'zip' | 'file'
 
 export type SpaceType = 'space'
 

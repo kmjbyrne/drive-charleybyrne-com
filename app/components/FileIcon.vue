@@ -1,38 +1,35 @@
 <script setup lang="ts">
-import { FILE_TYPES } from '~/data/file-types'
+import { FILE_TYPES, EXT_ICON_MAP } from '~/data/file-types'
 import type { FileType } from '~/data/types'
 
 const props = defineProps<{
-  type: FileType
-  size?: 'sm' | 'md' | 'lg'
+  type: string
+  ext?: string | null
+  size?: 'xs' | 'sm' | 'md' | 'lg'
 }>()
 
-const config = computed(() => FILE_TYPES[props.type] || FILE_TYPES.doc)
-
-const sizeClasses = computed(() => {
-  switch (props.size) {
-    case 'sm': return 'size-6'
-    case 'lg': return 'size-10'
-    default: return 'size-7'
+const iconName = computed(() => {
+  if (props.ext) {
+    const lower = props.ext.startsWith('.') ? props.ext.toLowerCase() : `.${props.ext.toLowerCase()}`
+    if (EXT_ICON_MAP[lower]) return EXT_ICON_MAP[lower]
   }
+  const config = FILE_TYPES[props.type as FileType] || FILE_TYPES.file
+  return config.icon
 })
 
-const iconSize = computed(() => {
+const sizeClass = computed(() => {
   switch (props.size) {
-    case 'sm': return 'size-3'
-    case 'lg': return 'size-5'
-    default: return 'size-4'
+    case 'xs': return 'size-4'
+    case 'sm': return 'size-5'
+    case 'lg': return 'size-8'
+    default: return 'size-6'
   }
 })
 </script>
 
 <template>
-  <div
-    :class="[sizeClasses, config.bg, 'rounded-md flex items-center justify-center shrink-0']"
-  >
-    <UIcon
-      :name="config.icon"
-      :class="[iconSize, config.fg]"
-    />
-  </div>
+  <UIcon
+    :name="iconName"
+    :class="[sizeClass, 'shrink-0']"
+  />
 </template>

@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+
+IMAGE="registry.charleybyrne.com/${1}"
+TAG="${2:-latest}"
+
+docker buildx build --platform linux/arm64 -t "${IMAGE}:${TAG}" --push .

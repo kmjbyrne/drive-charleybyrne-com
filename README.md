@@ -1,38 +1,13 @@
-# Nuxt Starter Template
+# Storage
 
-[![Nuxt UI](https://img.shields.io/badge/Made%20with-Nuxt%20UI-00DC82?logo=nuxt&labelColor=020420)](https://ui.nuxt.com)
-
-Use this template to get started with [Nuxt UI](https://ui.nuxt.com) quickly.
-
-- [Live demo](https://starter-template.nuxt.dev/)
-- [Documentation](https://ui.nuxt.com/docs/getting-started/installation/nuxt)
-
-<a href="https://starter-template.nuxt.dev/" target="_blank">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="https://ui.nuxt.com/assets/templates/nuxt/starter-dark.png">
-    <source media="(prefers-color-scheme: light)" srcset="https://ui.nuxt.com/assets/templates/nuxt/starter-light.png">
-    <img alt="Nuxt Starter Template" src="https://ui.nuxt.com/assets/templates/nuxt/starter-light.png" width="830" height="466">
-  </picture>
-</a>
-
-> The starter template for Vue is on https://github.com/nuxt-ui-templates/starter-vue.
-
-## Quick Start
-
-```bash [Terminal]
-npm create nuxt@latest -- -t ui
-```
-
-## Deploy your own
-
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-name=starter&repository-url=https%3A%2F%2Fgithub.com%2Fnuxt-ui-templates%2Fstarter&demo-image=https%3A%2F%2Fui.nuxt.com%2Fassets%2Ftemplates%2Fnuxt%2Fstarter-dark.png&demo-url=https%3A%2F%2Fstarter-template.nuxt.dev%2F&demo-title=Nuxt%20Starter%20Template&demo-description=A%20minimal%20template%20to%20get%20started%20with%20Nuxt%20UI.)
+A self-hosted file storage application built with Nuxt 4 and Nuxt UI v4.
 
 ## Setup
 
 Make sure to install the dependencies:
 
 ```bash
-pnpm install
+npm install
 ```
 
 ## Development Server
@@ -40,7 +15,7 @@ pnpm install
 Start the development server on `http://localhost:3000`:
 
 ```bash
-pnpm dev
+npm run dev
 ```
 
 ## Production
@@ -48,17 +23,102 @@ pnpm dev
 Build the application for production:
 
 ```bash
-pnpm build
+npm run build
 ```
 
 Locally preview production build:
 
 ```bash
-pnpm preview
+npm run preview
 ```
 
-Check out the [deployment documentation](https://nuxt.com/docs/getting-started/deployment) for more information.
+## Deployment
 
-## Renovate integration
+The application is containerised and deployed to an ARM64 host via a private
+Docker registry. The build machine is x86_64 (Intel), so the image must be
+cross-compiled for the target architecture.
 
-Install [Renovate GitHub app](https://github.com/apps/renovate/installations/select_target) on your repository and you are good to go.
+### Prerequisites
+
+A private Docker registry must be running and reachable from both the build
+machine and the deployment host. The registry in
+`Development/server/docker-nginx` runs behind nginx with mTLS client certificate
+authentication at `registry.charleybyrne.com`. Docker client certificates must
+be installed at `/etc/docker/certs.d/registry.charleybyrne.com/` on any machine
+that needs to push or pull images.
+
+### Build and Push (Intel build machine)
+
+Use Docker Buildx to cross-compile for ARM64 and push directly to the registry
+in one step:
+
+```bash
+# Create a builder that supports multi-platform builds (one-time setup)
+docker buildx create --name multiarch --use
+docker buildx inspect --bootstrap
+
+# Build for ARM64 and push to the registry
+docker buildx build \
+  --platform linux/arm64 \
+  -t registry.charleybyrne.com/storage:latest \
+  --push .
+```
+
+### Run on Deployment Host (ARM64)
+
+SSH into the deployment host and log in to the registry:
+
+```bash
+docker login registry.charleybyrne.com
+```
+
+There are two ways to run the container on the deployment host.
+
+#### Option A — Docker Compose
+
+Copy `docker-compose.yml` and your `.env.local` to the deployment host. The
+registry is hardcoded in the compose file so no extra variables are needed:
+
+```bash
+docker compose up -d
+```
+
+To update, pull the new image and recreate:
+
+```bash
+docker compose pull
+docker compose up -d
+```
+
+#### Option B — Docker Run
+
+Run the container directly without a compose file. The application needs a
+persistent volume for its data directory and environment variables from your
+`.env.local` file:
+
+```bash
+docker pull registry.charleybyrne.com/storage:latest
+docker run -d \
+  --name storage \
+  --restart unless-stopped \
+  --env-file .env.local \
+  -e NODE_ENV=production \
+  -v ./data:/app/data \
+  -p 8010:8010 \
+  registry.charleybyrne.com/storage:latest
+```
+
+To update to a newer build, pull the latest image and recreate the container:
+
+```bash
+docker pull registry.charleybyrne.com/storage:latest
+docker stop storage && docker rm storage
+docker run -d \
+  --name storage \
+  --restart unless-stopped \
+  --env-file .env.local \
+  -e NODE_ENV=production \
+  -v ./data:/app/data \
+  -p 8010:8010 \
+  registry.charleybyrne.com/storage:latest
+```

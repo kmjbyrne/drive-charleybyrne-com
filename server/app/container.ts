@@ -1,13 +1,32 @@
 import { S3Client } from '@aws-sdk/client-s3'
+import { resolve } from 'node:path'
 import { S3StorageRepository } from './repositories/storage.repository'
+import { LocalStorageRepository } from './repositories/local-storage.repository'
+import { SqliteCatalogRepository } from './repositories/sqlite-catalog.repository'
+import { SqlitePermissionRepository } from './repositories/sqlite-permission.repository'
+import { SqliteUserRepository } from './repositories/sqlite-user.repository'
+import { SqliteShareInviteRepository } from './repositories/sqlite-share-invite.repository'
 import { StorageService } from '../core/services/storage.service'
+import { PermissionService } from '../core/services/permission.service'
+import { useDatabase } from '../database'
+import type { IStorageRepository } from '../core/ports/repositories/storage.repository.port'
 
-function buildContainer() {
-  const config = useRuntimeConfig()
+function buildStorageRepo(config: ReturnType<typeof useRuntimeConfig>): IStorageRepository {
+  const driver = (config.storage.driver as string) || 'local'
+
+  if (driver === 'local') {
+    const blobPath = resolve(process.cwd(), 'data', 'blobs')
+    console.info(`[storage] Using local filesystem at ${blobPath}`)
+    return new LocalStorageRepository(blobPath)
+  }
+
+  if (driver !== 's3') {
+    throw new Error(`[storage] Unknown storage driver: "${driver}". Expected "local" or "s3".`)
+  }
 
   const bucket = config.s3.bucket as string
   if (!bucket) {
-    throw new Error('S3_BUCKET (NUXT_S3_BUCKET) environment variable is required')
+    throw new Error('[storage] Storage driver is "s3" but NUXT_S3_BUCKET is not set.')
   }
 
   const region = config.s3.region as string || 'eu-west-1'
@@ -34,10 +53,25 @@ function buildContainer() {
   }
 
   const s3Client = new S3Client(clientConfig)
-  const storageRepo = new S3StorageRepository(s3Client, bucket)
+  return new S3StorageRepository(s3Client, bucket)
+}
+
+function buildContainer() {
+  const config = useRuntimeConfig()
+  const storageRepo = buildStorageRepo(config)
+
+  const db = useDatabase()
+  const catalogRepo = new SqliteCatalogRepository(db)
+  const permissionRepo = new SqlitePermissionRepository(db)
+  const userRepo = new SqliteUserRepository(db)
+  const shareInviteRepo = new SqliteShareInviteRepository(db)
 
   return {
-    storageService: new StorageService(storageRepo)
+    storageService: new StorageService(storageRepo, catalogRepo),
+    permissionService: new PermissionService(permissionRepo, catalogRepo),
+    catalogRepo,
+    userRepo,
+    shareInviteRepo
   }
 }
 

@@ -1,0 +1,13 @@
+services:
+  storage:
+    image: registry.charleybyrne.com/storage:latest
+    container_name: storage
+    restart: unless-stopped
+    ports:
+      - "8010:3000"
+    volumes:
+      - ./data:/app/data
+    env_file:
+      - .env
+    environment:
+      - NODE_ENV=production

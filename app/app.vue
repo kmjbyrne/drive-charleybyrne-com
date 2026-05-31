@@ -25,7 +25,7 @@ useSeoMeta({
 <template>
   <UApp>
     <NuxtLayout>
-      <NuxtPage />
+      <NuxtPage :transition="false" />
     </NuxtLayout>
   </UApp>
 </template>

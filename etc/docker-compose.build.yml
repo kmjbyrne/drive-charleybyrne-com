@@ -1,0 +1,18 @@
+services:
+  storage:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      platforms:
+        - linux/arm64
+    platform: linux/arm64
+    container_name: storage
+    restart: unless-stopped
+    ports:
+      - "8010:8010"
+    volumes:
+      - ./data:/app/data
+    env_file:
+      - .env.local
+    environment:
+      - NODE_ENV=production

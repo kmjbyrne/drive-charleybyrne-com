@@ -1,0 +1,36 @@
+import { z } from 'zod'
+import { container } from '../../../../app/container'
+import { requireAuth } from '../../../../app/auth'
+import { requireAccess } from '../../../../app/guards'
+
+const bodySchema = z.object({
+  parentId: z.string().nullable()
+})
+
+export default defineEventHandler(async (event) => {
+  const user = await requireAuth(event)
+
+  const id = getRouterParam(event, 'id')
+  if (!id) {
+    throw createError({ statusCode: 400, message: 'File ID is required' })
+  }
+
+  const entry = await container.catalogRepo.getEntry(id)
+  if (!entry) {
+    throw createError({ statusCode: 404, message: 'File not found' })
+  }
+  await requireAccess(user, id, entry.type === 'folder' ? 'folder' : 'file', 'editor', entry.ownerId)
+
+  const body = await readValidatedBody(event, bodySchema.parse)
+
+  const updated = await container.catalogRepo.updateEntry(id, {
+    parentId: body.parentId,
+    modifiedAt: new Date()
+  })
+
+  if (!updated) {
+    throw createError({ statusCode: 404, message: 'File not found' })
+  }
+
+  return updated
+})

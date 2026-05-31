@@ -40,6 +40,15 @@ export interface IStorageRepository {
   ): Promise<PresignedDownload>
 
   /**
+   * Upload a file body directly to the storage backend.
+   */
+  put(
+    key: string,
+    body: Buffer | Uint8Array,
+    contentType: string
+  ): Promise<void>
+
+  /**
    * Create a zero-byte marker object to represent an empty folder.
    */
   createFolder(key: string): Promise<void>

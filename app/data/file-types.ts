@@ -1,12 +1,100 @@
 import type { FileTypeConfig, FileType } from './types'
 
 export const FILE_TYPES: Record<FileType, FileTypeConfig> = {
-  folder: { icon: 'i-lucide-folder', bg: 'transparent', fg: 'text-muted', tag: 'Folder' },
-  doc: { icon: 'i-lucide-file-text', bg: 'bg-blue-50 dark:bg-blue-500/10', fg: 'text-blue-600 dark:text-blue-400', tag: 'Word' },
-  pdf: { icon: 'i-lucide-file-text', bg: 'bg-red-50 dark:bg-red-500/10', fg: 'text-red-600 dark:text-red-400', tag: 'PDF' },
-  image: { icon: 'i-lucide-image', bg: 'bg-fuchsia-50 dark:bg-fuchsia-500/10', fg: 'text-fuchsia-600 dark:text-fuchsia-400', tag: 'Image' },
-  video: { icon: 'i-lucide-video', bg: 'bg-purple-50 dark:bg-purple-500/10', fg: 'text-purple-600 dark:text-purple-400', tag: 'Video' },
-  design: { icon: 'i-lucide-figma', bg: 'bg-orange-50 dark:bg-orange-500/10', fg: 'text-orange-600 dark:text-orange-400', tag: 'Figma' },
-  code: { icon: 'i-lucide-file-code-2', bg: 'bg-cyan-50 dark:bg-cyan-500/10', fg: 'text-cyan-600 dark:text-cyan-400', tag: 'Code' },
-  zip: { icon: 'i-lucide-archive', bg: 'bg-yellow-50 dark:bg-yellow-500/10', fg: 'text-yellow-600 dark:text-yellow-400', tag: 'Archive' }
+  folder: { icon: 'i-vscode-icons-default-folder', bg: 'transparent', fg: '', tag: 'Folder' },
+  doc: { icon: 'i-vscode-icons-file-type-word', bg: 'transparent', fg: '', tag: 'Word' },
+  pdf: { icon: 'i-vscode-icons-file-type-pdf2', bg: 'transparent', fg: '', tag: 'PDF' },
+  image: { icon: 'i-vscode-icons-file-type-image', bg: 'transparent', fg: '', tag: 'Image' },
+  video: { icon: 'i-vscode-icons-file-type-video', bg: 'transparent', fg: '', tag: 'Video' },
+  audio: { icon: 'i-vscode-icons-file-type-audio', bg: 'transparent', fg: '', tag: 'Audio' },
+  markdown: { icon: 'i-vscode-icons-file-type-markdown', bg: 'transparent', fg: '', tag: 'Markdown' },
+  design: { icon: 'i-vscode-icons-file-type-figma', bg: 'transparent', fg: '', tag: 'Figma' },
+  code: { icon: 'i-vscode-icons-file-type-typescript', bg: 'transparent', fg: '', tag: 'Code' },
+  zip: { icon: 'i-vscode-icons-file-type-zip', bg: 'transparent', fg: '', tag: 'Archive' },
+  file: { icon: 'i-vscode-icons-default-file', bg: 'transparent', fg: '', tag: 'File' }
+}
+
+// Extension-specific icons for code files and other detailed types
+export const EXT_ICON_MAP: Record<string, string> = {
+  // Code
+  '.ts': 'i-vscode-icons-file-type-typescript',
+  '.tsx': 'i-vscode-icons-file-type-typescript',
+  '.js': 'i-vscode-icons-file-type-js',
+  '.jsx': 'i-vscode-icons-file-type-js',
+  '.vue': 'i-vscode-icons-file-type-vue',
+  '.py': 'i-vscode-icons-file-type-python',
+  '.rb': 'i-vscode-icons-file-type-ruby',
+  '.go': 'i-vscode-icons-file-type-go',
+  '.rs': 'i-vscode-icons-file-type-rust',
+  '.java': 'i-vscode-icons-file-type-java',
+  '.c': 'i-vscode-icons-file-type-c',
+  '.cpp': 'i-vscode-icons-file-type-cpp',
+  '.cs': 'i-vscode-icons-file-type-csharp',
+  '.php': 'i-vscode-icons-file-type-php',
+  '.swift': 'i-vscode-icons-file-type-swift',
+  '.kt': 'i-vscode-icons-file-type-kotlin',
+  '.kts': 'i-vscode-icons-file-type-kotlin',
+  '.dart': 'i-vscode-icons-file-type-dart',
+  '.sh': 'i-vscode-icons-file-type-shell',
+  '.bash': 'i-vscode-icons-file-type-shell',
+  '.zsh': 'i-vscode-icons-file-type-shell',
+  '.bat': 'i-vscode-icons-file-type-shell',
+  '.cmd': 'i-vscode-icons-file-type-shell',
+  '.ps1': 'i-vscode-icons-file-type-shell',
+  '.r': 'i-vscode-icons-file-type-r',
+  '.lua': 'i-vscode-icons-file-type-lua',
+  '.sql': 'i-vscode-icons-file-type-sql',
+
+  // Config / data
+  '.json': 'i-vscode-icons-file-type-json',
+  '.yaml': 'i-vscode-icons-file-type-yaml',
+  '.yml': 'i-vscode-icons-file-type-yaml',
+  '.toml': 'i-vscode-icons-file-type-toml',
+  '.xml': 'i-vscode-icons-file-type-xml',
+  '.env': 'i-vscode-icons-file-type-dotenv',
+  '.ini': 'i-vscode-icons-file-type-config',
+  '.cfg': 'i-vscode-icons-file-type-config',
+  '.conf': 'i-vscode-icons-file-type-config',
+  '.properties': 'i-vscode-icons-file-type-config',
+  '.gradle': 'i-vscode-icons-file-type-gradle',
+  '.csv': 'i-vscode-icons-file-type-excel',
+
+  // Web
+  '.html': 'i-vscode-icons-file-type-html',
+  '.css': 'i-vscode-icons-file-type-css',
+  '.scss': 'i-vscode-icons-file-type-scss',
+  '.sass': 'i-vscode-icons-file-type-sass',
+  '.less': 'i-vscode-icons-file-type-less',
+  '.svg': 'i-vscode-icons-file-type-svg',
+
+  // Docs
+  '.md': 'i-vscode-icons-file-type-markdown',
+  '.docx': 'i-vscode-icons-file-type-word',
+  '.doc': 'i-vscode-icons-file-type-word',
+  '.pdf': 'i-vscode-icons-file-type-pdf2',
+  '.txt': 'i-vscode-icons-file-type-text',
+  '.xlsx': 'i-vscode-icons-file-type-excel',
+  '.xls': 'i-vscode-icons-file-type-excel',
+  '.pptx': 'i-vscode-icons-file-type-powerpoint',
+  '.ppt': 'i-vscode-icons-file-type-powerpoint',
+
+  // Images
+  '.png': 'i-vscode-icons-file-type-image',
+  '.jpg': 'i-vscode-icons-file-type-image',
+  '.jpeg': 'i-vscode-icons-file-type-image',
+  '.gif': 'i-vscode-icons-file-type-image',
+  '.webp': 'i-vscode-icons-file-type-image',
+
+  // Archives
+  '.zip': 'i-vscode-icons-file-type-zip',
+  '.tar': 'i-vscode-icons-file-type-zip',
+  '.gz': 'i-vscode-icons-file-type-zip',
+  '.rar': 'i-vscode-icons-file-type-zip',
+
+  // Docker / CI
+  '.dockerfile': 'i-vscode-icons-file-type-docker',
+  '.dockerignore': 'i-vscode-icons-file-type-docker',
+
+  // Git
+  '.gitignore': 'i-vscode-icons-file-type-git',
 }

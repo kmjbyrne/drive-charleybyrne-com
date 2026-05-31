@@ -1,15 +1,13 @@
 import {
-  S3Client,
   HeadObjectCommand,
   PutObjectCommand,
   DeleteObjectCommand,
   DeleteObjectsCommand,
   CopyObjectCommand,
-  ListObjectsV2Command
+  ListObjectsV2Command, GetObjectCommand
 } from '@aws-sdk/client-s3'
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
-import type { GetObjectCommand as GetObjectCommandType } from '@aws-sdk/client-s3'
-import { GetObjectCommand } from '@aws-sdk/client-s3'
+import type { S3Client } from '@aws-sdk/client-s3'
 import type { IStorageRepository } from '../../core/ports/repositories/storage.repository.port'
 import type {
   ListResult,
@@ -79,8 +77,7 @@ export class S3StorageRepository implements IStorageRepository {
         etag: response.ETag ?? '',
         contentType: response.ContentType ?? 'application/octet-stream'
       }
-    }
-    catch (error: unknown) {
+    } catch (error: unknown) {
       if (this.isNotFound(error)) return null
       throw error
     }
@@ -119,6 +116,20 @@ export class S3StorageRepository implements IStorageRepository {
     })
 
     return { url }
+  }
+
+  async put(
+    key: string,
+    body: Buffer | Uint8Array,
+    contentType: string
+  ): Promise<void> {
+    const command = new PutObjectCommand({
+      Bucket: this.bucket,
+      Key: key,
+      Body: body,
+      ContentType: contentType
+    })
+    await this.client.send(command)
   }
 
   async createFolder(key: string): Promise<void> {

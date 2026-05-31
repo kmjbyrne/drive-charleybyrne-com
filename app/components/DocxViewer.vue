@@ -11,7 +11,7 @@ const emit = defineEmits<{
 const editorRef = ref<HTMLElement | null>(null)
 const loading = ref(true)
 const error = ref<string | null>(null)
-let superdocInstance: any = null
+let superdocInstance: InstanceType<typeof import('superdoc').SuperDoc> | null = null
 
 defineShortcuts({
   escape: () => emit('close')
@@ -36,11 +36,9 @@ onMounted(async () => {
       selector: `#${editorRef.value.id}`,
       document: file
     })
-  }
-  catch (e) {
+  } catch (e) {
     error.value = e instanceof Error ? e.message : 'Failed to load document'
-  }
-  finally {
+  } finally {
     loading.value = false
   }
 })

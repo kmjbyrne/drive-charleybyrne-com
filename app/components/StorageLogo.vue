@@ -2,6 +2,13 @@
 defineProps<{
   collapsed?: boolean
 }>()
+
+const { user } = useAuth()
+
+const workspaceLabel = computed(() => {
+  if (!user.value) return 'Storage'
+  return `${user.value.firstName}'s workspace`
+})
 </script>
 
 <template>
@@ -19,7 +26,7 @@ defineProps<{
         Storage
       </div>
       <div class="text-xs text-muted truncate">
-        James' workspace
+        {{ workspaceLabel }}
       </div>
     </div>
   </div>
