@@ -7,11 +7,13 @@ import type {
   PermissionRole
 } from '../domain/permission'
 import { ROLE_RANK } from '../domain/permission'
+import type { ActivityService } from './activity.service'
 
 export class PermissionService {
   constructor(
     private readonly permissions: IPermissionRepository,
-    private readonly catalog: ICatalogRepository
+    private readonly catalog: ICatalogRepository,
+    private readonly activity?: ActivityService
   ) {}
 
   async grant(params: {
@@ -30,11 +32,40 @@ export class PermissionService {
       grantedBy: params.grantedBy,
       createdAt: new Date()
     }
-    return this.permissions.grant(permission)
+    const result = await this.permissions.grant(permission)
+
+    if (this.activity) {
+      // Resolve object name for the activity snapshot
+      const objectName = await this.resolveObjectName(params.objectId, params.objectType)
+      await this.activity.record({
+        actorId: params.grantedBy,
+        action: 'share.granted',
+        objectId: params.objectId,
+        objectType: params.objectType,
+        objectName,
+        targetUserId: params.subjectId
+      })
+    }
+
+    return result
   }
 
   async revoke(objectId: string, subjectId: string): Promise<void> {
-    return this.permissions.revoke(objectId, subjectId)
+    // Look up the permission before deleting so we have the objectType
+    const existing = await this.permissions.getPermission(objectId, subjectId)
+    await this.permissions.revoke(objectId, subjectId)
+
+    if (this.activity && existing) {
+      const objectName = await this.resolveObjectName(objectId, existing.objectType)
+      await this.activity.record({
+        actorId: existing.grantedBy,
+        action: 'share.revoked',
+        objectId,
+        objectType: existing.objectType,
+        objectName,
+        targetUserId: subjectId
+      })
+    }
   }
 
   async listCollaborators(objectId: string): Promise<ObjectPermission[]> {
@@ -43,6 +74,10 @@ export class PermissionService {
 
   async listSharedByMe(grantedBy: string): Promise<ObjectPermission[]> {
     return this.permissions.listByGranter(grantedBy)
+  }
+
+  async listBySubject(subjectId: string): Promise<ObjectPermission[]> {
+    return this.permissions.listBySubject(subjectId)
   }
 
   async listAccessibleSpaces(subjectId: string): Promise<ObjectPermission[]> {
@@ -128,5 +163,14 @@ export class PermissionService {
     if (!effective) return false
 
     return ROLE_RANK[effective.role] >= ROLE_RANK[requiredRole]
+  }
+
+  private async resolveObjectName(objectId: string, objectType: ObjectType): Promise<string> {
+    if (objectType === 'space') {
+      const space = await this.catalog.getSpace(objectId)
+      return space?.name ?? objectId
+    }
+    const entry = await this.catalog.getEntry(objectId)
+    return entry?.name ?? objectId
   }
 }

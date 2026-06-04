@@ -21,6 +21,7 @@ export default defineEventHandler(async (event) => {
   await requireAccess(user, id, entry.type === 'folder' ? 'folder' : 'file', 'editor', entry.ownerId)
 
   const body = await readValidatedBody(event, bodySchema.parse)
+  const oldName = entry.name
   const updated = await container.catalogRepo.updateEntry(id, {
     name: body.name,
     modifiedAt: new Date()
@@ -28,6 +29,14 @@ export default defineEventHandler(async (event) => {
   if (!updated) {
     throw createError({ statusCode: 404, message: 'File not found' })
   }
+
+  await container.activityService.record({
+    actorId: user.sub,
+    action: 'file.renamed',
+    objectId: id,
+    objectType: entry.type === 'folder' ? 'folder' : 'file',
+    objectName: oldName
+  })
 
   return updated
 })

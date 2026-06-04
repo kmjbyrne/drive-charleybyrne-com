@@ -86,6 +86,19 @@ export const shareInvites = sqliteTable('share_invites', {
     .$defaultFn(() => new Date())
 })
 
+export const activities = sqliteTable('activities', {
+  id: text('id').primaryKey(),
+  actorId: text('actor_id').notNull(),
+  action: text('action').notNull(),
+  objectId: text('object_id').notNull(),
+  objectType: text('object_type').notNull(),
+  objectName: text('object_name').notNull(),
+  targetUserId: text('target_user_id'),
+  createdAt: integer('created_at', { mode: 'timestamp' })
+    .notNull()
+    .$defaultFn(() => new Date())
+})
+
 export const objectPermissions = sqliteTable('object_permissions', {
   id: text('id').primaryKey(),
   // The file, folder, or space this permission applies to

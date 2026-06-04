@@ -10,7 +10,14 @@ const emit = defineEmits<{
   share: [file: ApiFileEntry]
 }>()
 
+const { user } = useAuth()
+
 const fileType = computed(() => deriveFileType(props.file.ext, props.file.type))
+
+const canShare = computed(() => {
+  if (!user.value || !props.file.ownerId) return false
+  return props.file.ownerId === user.value.sub
+})
 
 const downloadUrl = computed(() => {
   if (!props.file.blobKey) return null
@@ -121,7 +128,10 @@ function formatDate(dateStr: string): string {
           :ext="file.ext"
           size="sm"
         />
-        <span class="text-sm font-semibold text-default truncate">
+        <span
+          class="text-sm font-semibold text-default truncate"
+          :title="`${file.name}${file.ext || ''}`"
+        >
           {{ file.name }}{{ file.ext || '' }}
         </span>
       </div>
@@ -174,18 +184,29 @@ function formatDate(dateStr: string): string {
 
       <!-- Audio preview -->
       <div
-        v-else-if="isAudio && downloadUrl"
-        class="p-4 flex flex-col items-center gap-4 pt-8"
+        v-else-if="isAudio"
+        class="p-4 pt-6 flex flex-col gap-4"
       >
-        <FileIcon
-          :type="fileType"
-          :ext="file.ext"
-          size="lg"
-        />
-        <audio
+        <AudioWaveform
+          v-if="downloadUrl"
+          :key="file.id"
           :src="downloadUrl"
-          controls
-          class="w-full"
+          :file-name="`${file.name}${file.ext || ''}`"
+        />
+        <div
+          v-else
+          class="flex flex-col items-center gap-2 py-4"
+        >
+          <FileIcon
+            :type="fileType"
+            :ext="file.ext"
+            size="lg"
+          />
+          <span class="text-xs text-muted">No audio data available</span>
+        </div>
+        <AudioMetadata
+          :key="`meta-${file.id}`"
+          :file="file"
         />
       </div>
 
@@ -289,6 +310,7 @@ function formatDate(dateStr: string): string {
       </div>
       <div class="pt-2 flex flex-col gap-1.5">
         <UButton
+          v-if="canShare"
           icon="i-lucide-share-2"
           label="Share"
           variant="outline"

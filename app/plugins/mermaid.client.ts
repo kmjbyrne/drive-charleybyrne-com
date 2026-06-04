@@ -13,7 +13,8 @@ async function renderMermaidIn(root: Element) {
   const MERMAID_KEYWORDS = [
     'sequenceDiagram', 'graph', 'flowchart', 'gantt',
     'classDiagram', 'stateDiagram', 'erDiagram', 'journey',
-    'gitGraph', 'pie', 'requirementDiagram', 'mindmap', 'timeline'
+    'gitGraph', 'pie', 'requirementDiagram', 'mindmap', 'timeline',
+    'quadrantChart', 'xychart', 'sankey', 'block'
   ]
 
   const blocks = root.querySelectorAll(
@@ -23,7 +24,9 @@ async function renderMermaidIn(root: Element) {
   for (const element of Array.from(blocks)) {
     const code = element.querySelector('code') || element
     const text = (code.textContent || '').trim()
-    if (!MERMAID_KEYWORDS.some(kw => text.startsWith(kw))) continue
+    // Strip %%{...}%% directives (e.g. init/theme) before checking keywords
+    const stripped = text.replace(/^%%\{[^}]*\}%%\s*/g, '')
+    if (!MERMAID_KEYWORDS.some(kw => stripped.startsWith(kw))) continue
 
     const pre = element.tagName === 'PRE' ? element : element.closest('pre')
     if (!pre || pre.hasAttribute('data-mermaid-rendered')) continue
@@ -71,6 +74,9 @@ export default defineNuxtPlugin(() => {
   }
 
   if (import.meta.client) {
+    // Initialize mermaid theme on first load
+    updateMermaidTheme()
+
     // Expose a global function that components can call after rendering markdown
     window.__renderMermaid = () => {
       const panes = document.querySelectorAll('.markdown-preview')

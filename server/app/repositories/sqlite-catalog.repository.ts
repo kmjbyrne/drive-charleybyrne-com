@@ -58,6 +58,7 @@ export class SqliteCatalogRepository implements ICatalogRepository {
   }
 
   async deleteSpace(id: string): Promise<void> {
+    await this.db.delete(schema.fileEntries).where(eq(schema.fileEntries.spaceId, id))
     await this.db.delete(schema.spaces).where(eq(schema.spaces.id, id))
   }
 

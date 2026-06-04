@@ -26,6 +26,14 @@ const { registerRemover, unregisterRemover, removeFromNode } = inject<{
 }>('treeNodeRemovers')!
 
 const isFolder = computed(() => props.entry.type === 'folder')
+
+const {
+  visible: folderStatsVisible,
+  stats: folderStats,
+  loading: folderStatsLoading,
+  onMouseEnter: folderMouseEnter,
+  onMouseLeave: folderMouseLeave
+} = useFolderStats()
 const expanded = ref(false)
 const children = ref<ApiFileEntry[]>([])
 const loading = ref(false)
@@ -198,6 +206,8 @@ function handleChildMoved(_fileId: string) {
         draggable="true"
         @click="handleClick"
         @dblclick="emit('open', entry)"
+        @mouseenter="isFolder && folderMouseEnter(entry.id)"
+        @mouseleave="isFolder && folderMouseLeave()"
         @dragstart="onDragStart"
         @dragover="onDragOver"
         @dragleave="onDragLeave"
@@ -256,6 +266,12 @@ function handleChildMoved(_fileId: string) {
           class="shrink-0 size-4"
         />
 
+        <FolderHoverStats
+          v-if="isFolder"
+          :visible="folderStatsVisible"
+          :loading="folderStatsLoading"
+          :stats="folderStats"
+        />
         <FileIcon
           :type="deriveFileType(entry.ext, entry.type)"
           :ext="entry.ext"

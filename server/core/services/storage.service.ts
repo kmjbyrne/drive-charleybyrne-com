@@ -7,6 +7,7 @@ import type {
   PresignedDownload
 } from '../domain/storage'
 import type { FileEntry } from '../domain/catalog'
+import type { ActivityService } from './activity.service'
 
 // Presigned URL expiry defaults (seconds)
 const UPLOAD_EXPIRY = 900
@@ -15,7 +16,8 @@ const DOWNLOAD_EXPIRY = 300
 export class StorageService {
   constructor(
     private readonly storage: IStorageRepository,
-    private readonly catalog: ICatalogRepository
+    private readonly catalog: ICatalogRepository,
+    private readonly activity?: ActivityService
   ) {}
 
   async browse(
@@ -125,7 +127,19 @@ export class StorageService {
       modifiedAt: now
     }
 
-    return this.catalog.createEntry(entry)
+    const created = await this.catalog.createEntry(entry)
+
+    if (this.activity) {
+      await this.activity.record({
+        actorId: userId,
+        action: 'file.uploaded',
+        objectId: id,
+        objectType: 'file',
+        objectName: entry.name
+      })
+    }
+
+    return created
   }
 
   async updateContent(

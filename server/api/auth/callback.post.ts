@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { decodeJwt } from 'jose'
 import { container } from '../../app/container'
+import { ACCESS_TOKEN_MAX_AGE, REFRESH_TOKEN_MAX_AGE } from '../../app/auth'
 
 const bodySchema = z.object({
   code: z.string().min(1),
@@ -11,10 +12,10 @@ export default defineEventHandler(async (event) => {
   const body = await readValidatedBody(event, bodySchema.parse)
   const config = useRuntimeConfig()
 
-  let response: { access_token: string }
+  let response: { access_token: string, refresh_token?: string }
   try {
     // Exchange the auth code for a JWT via Janus /v1/oauth/token
-    response = await $fetch<{ access_token: string }>(`${config.janus.url}/v1/oauth/token`, {
+    response = await $fetch<{ access_token: string, refresh_token?: string }>(`${config.janus.url}/v1/oauth/token`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: {
@@ -34,8 +35,6 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 401, message: 'No access token received' })
   }
 
-  console.log('[auth/callback] Token received, length:', response.access_token.length)
-
   // Sync user to local database for sharing lookups
   try {
     const claims = decodeJwt(response.access_token) as Record<string, unknown>
@@ -44,7 +43,7 @@ export default defineEventHandler(async (event) => {
 
     await container.userRepo.upsert({
       id: userId,
-      email: claims.email as string,
+      email: userEmail,
       firstName: claims.first_name as string,
       lastName: claims.last_name as string,
       avatar: (claims.avatar as string) || null,
@@ -74,14 +73,24 @@ export default defineEventHandler(async (event) => {
   }
 
   // Set the JWT as an httpOnly cookie
-  setCookie(event, 'auth-token', response.access_token, {
+  setCookie(event, 'accessToken', response.access_token, {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
     sameSite: 'lax',
-    // 1 hour to match Janus JWT expiry
-    maxAge: 60 * 60,
+    maxAge: ACCESS_TOKEN_MAX_AGE,
     path: '/'
   })
+
+  // Store the refresh token in a separate long-lived cookie
+  if (response.refresh_token) {
+    setCookie(event, 'refreshToken', response.refresh_token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: REFRESH_TOKEN_MAX_AGE,
+      path: '/'
+    })
+  }
 
   return { ok: true }
 })

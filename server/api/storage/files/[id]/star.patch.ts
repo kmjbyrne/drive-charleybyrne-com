@@ -7,7 +7,7 @@ const bodySchema = z.object({
 })
 
 export default defineEventHandler(async (event) => {
-  await requireAuth(event)
+  const user = await requireAuth(event)
   const id = getRouterParam(event, 'id')
   if (!id) {
     throw createError({ statusCode: 400, message: 'File ID is required' })
@@ -18,6 +18,14 @@ export default defineEventHandler(async (event) => {
   if (!updated) {
     throw createError({ statusCode: 404, message: 'File not found' })
   }
+
+  await container.activityService.record({
+    actorId: user.sub,
+    action: body.starred ? 'file.starred' : 'file.unstarred',
+    objectId: id,
+    objectType: updated.type === 'folder' ? 'folder' : 'file',
+    objectName: updated.name
+  })
 
   return updated
 })

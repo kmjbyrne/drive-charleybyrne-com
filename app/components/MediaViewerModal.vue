@@ -36,13 +36,16 @@ function mediaType(entry: ApiFileEntry): 'video' | 'audio' | 'image' {
           autoplay
           class="w-full rounded-lg max-h-[70vh]"
         />
-        <audio
+        <div
           v-else-if="mediaType(file) === 'audio'"
-          :src="viewerUrl(file)!"
-          controls
-          autoplay
           class="w-full"
-        />
+        >
+          <AudioWaveform
+            :key="file.id"
+            :src="viewerUrl(file)!"
+            :file-name="`${file.name}${file.ext || ''}`"
+          />
+        </div>
         <img
           v-else
           :src="viewerUrl(file)!"

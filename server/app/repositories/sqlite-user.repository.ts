@@ -1,4 +1,4 @@
-import { eq, like, and, inArray } from 'drizzle-orm'
+import { eq, like, and, inArray, sql } from 'drizzle-orm'
 import type { BetterSQLite3Database } from 'drizzle-orm/better-sqlite3'
 import type { IUserRepository } from '../../core/ports/repositories/user.repository.port'
 import type { LocalUser } from '../../core/domain/user'
@@ -63,7 +63,7 @@ export class SqliteUserRepository implements IUserRepository {
     const row = await this.db
       .select()
       .from(schema.users)
-      .where(eq(schema.users.email, email.toLowerCase()))
+      .where(sql`lower(${schema.users.email}) = ${email.toLowerCase()}`)
       .get()
     return row ? this.toModel(row) : null
   }

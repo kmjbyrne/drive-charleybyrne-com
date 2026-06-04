@@ -34,9 +34,9 @@ test.describe('API endpoints require authentication', () => {
 })
 
 test.describe('Auth cookie rejection', () => {
-  test('invalid auth-token cookie returns 401 on /api/auth/me', async ({ request, context }) => {
+  test('invalid accessToken cookie returns 401 on /api/auth/me', async ({ request, context }) => {
     await context.addCookies([
-      { name: 'auth-token', value: 'invalid.token.value', domain: 'localhost', path: '/' }
+      { name: 'accessToken', value: 'invalid.token.value', domain: 'localhost', path: '/' }
     ])
     const res = await request.get('/api/auth/me')
     expect(res.status()).toBe(401)
@@ -46,7 +46,7 @@ test.describe('Auth cookie rejection', () => {
     // A structurally valid but expired JWT (RS512 signed, wrong key)
     const fakeJwt = 'eyJhbGciOiJSUzUxMiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ0ZXN0IiwiZXhwIjoxfQ.fake'
     await context.addCookies([
-      { name: 'auth-token', value: fakeJwt, domain: 'localhost', path: '/' }
+      { name: 'accessToken', value: fakeJwt, domain: 'localhost', path: '/' }
     ])
     const res = await request.get('/api/auth/me')
     expect(res.status()).toBe(401)

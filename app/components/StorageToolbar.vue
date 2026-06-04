@@ -12,6 +12,8 @@ defineProps<{
   newMenuItems: DropdownMenuItem[][]
 }>()
 
+const { onboarding: t } = useContent()
+
 const viewMode = defineModel<string>('viewMode', { required: true })
 const previewPinned = defineModel<boolean>('previewPinned', { required: true })
 const sidebarOpen = defineModel<boolean>('sidebarOpen', { required: true })
@@ -84,35 +86,49 @@ defineExpose({ triggerUpload })
     </template>
 
     <template #right>
-      <div
+      <TooltipHint
         v-if="!navbarCompact"
-        class="flex gap-0.5 p-0.5 bg-elevated rounded-md"
+        hint-id="view-modes"
+        :title="t.hints.viewModes.title"
+        :description="t.hints.viewModes.description"
+        icon="i-lucide-layout-grid"
+        side="bottom"
+      >
+        <div class="flex gap-0.5 p-0.5 bg-elevated rounded-md">
+          <UButton
+            v-for="mode in viewModes"
+            :key="mode.id"
+            :icon="mode.icon"
+            :variant="viewMode === mode.id ? 'solid' : 'ghost'"
+            :color="'neutral'"
+            size="xs"
+            :title="mode.label"
+            @click="viewMode = mode.id"
+          />
+        </div>
+      </TooltipHint>
+
+      <TooltipHint
+        v-if="!navbarCompact"
+        hint-id="preview-panel"
+        :title="t.hints.previewPanel.title"
+        :description="t.hints.previewPanel.description"
+        icon="i-lucide-panel-right-open"
+        side="bottom"
       >
         <UButton
-          v-for="mode in viewModes"
-          :key="mode.id"
-          :icon="mode.icon"
-          :variant="viewMode === mode.id ? 'solid' : 'ghost'"
-          :color="'neutral'"
+          :icon="
+            previewPinned
+              ? 'i-lucide-panel-right-close'
+              : 'i-lucide-panel-right-open'
+          "
+          variant="ghost"
+          color="neutral"
           size="xs"
-          :title="mode.label"
-          @click="viewMode = mode.id"
+          :title="previewPinned ? 'Hide preview' : 'Show preview'"
+          @click="previewPinned = !previewPinned"
         />
-      </div>
-
-      <UButton
-        v-if="!navbarCompact"
-        :icon="
-          previewPinned
-            ? 'i-lucide-panel-right-close'
-            : 'i-lucide-panel-right-open'
-        "
-        variant="ghost"
-        color="neutral"
-        size="xs"
-        :title="previewPinned ? 'Hide preview' : 'Show preview'"
-        @click="previewPinned = !previewPinned"
-      />
+      </TooltipHint>
 
       <UDropdownMenu
         v-if="navbarCompact"
@@ -135,17 +151,25 @@ defineExpose({ triggerUpload })
           class="h-5"
         />
 
-        <UButton
+        <TooltipHint
+          hint-id="upload-files"
+          :title="t.hints.uploadFiles.title"
+          :description="t.hints.uploadFiles.description"
           icon="i-lucide-upload"
-          variant="outline"
-          color="neutral"
-          size="xs"
-          title="Upload files"
-          :loading="uploading"
-          @click="triggerUpload"
+          side="bottom"
         >
-          <span v-if="!hideButtonLabels">Upload</span>
-        </UButton>
+          <UButton
+            icon="i-lucide-upload"
+            variant="outline"
+            color="neutral"
+            size="xs"
+            title="Upload files"
+            :loading="uploading"
+            @click="triggerUpload"
+          >
+            <span v-if="!hideButtonLabels">Upload</span>
+          </UButton>
+        </TooltipHint>
         <input
           ref="fileInput"
           type="file"

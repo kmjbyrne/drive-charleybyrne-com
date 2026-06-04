@@ -6,8 +6,10 @@ import { SqliteCatalogRepository } from './repositories/sqlite-catalog.repositor
 import { SqlitePermissionRepository } from './repositories/sqlite-permission.repository'
 import { SqliteUserRepository } from './repositories/sqlite-user.repository'
 import { SqliteShareInviteRepository } from './repositories/sqlite-share-invite.repository'
+import { SqliteActivityRepository } from './repositories/sqlite-activity.repository'
 import { StorageService } from '../core/services/storage.service'
 import { PermissionService } from '../core/services/permission.service'
+import { ActivityService } from '../core/services/activity.service'
 import { useDatabase } from '../database'
 import type { IStorageRepository } from '../core/ports/repositories/storage.repository.port'
 
@@ -65,10 +67,13 @@ function buildContainer() {
   const permissionRepo = new SqlitePermissionRepository(db)
   const userRepo = new SqliteUserRepository(db)
   const shareInviteRepo = new SqliteShareInviteRepository(db)
+  const activityRepo = new SqliteActivityRepository(db)
+  const activityService = new ActivityService(activityRepo)
 
   return {
-    storageService: new StorageService(storageRepo, catalogRepo),
-    permissionService: new PermissionService(permissionRepo, catalogRepo),
+    storageService: new StorageService(storageRepo, catalogRepo, activityService),
+    permissionService: new PermissionService(permissionRepo, catalogRepo, activityService),
+    activityService,
     catalogRepo,
     userRepo,
     shareInviteRepo

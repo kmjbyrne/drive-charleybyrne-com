@@ -19,5 +19,14 @@ export default defineEventHandler(async (event) => {
 
   // Soft-delete: move to trash instead of permanently deleting
   await container.catalogRepo.trashEntry(id)
+
+  await container.activityService.record({
+    actorId: user.sub,
+    action: 'file.trashed',
+    objectId: id,
+    objectType,
+    objectName: entry.name
+  })
+
   return { ok: true }
 })

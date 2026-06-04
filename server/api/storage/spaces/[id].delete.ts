@@ -20,6 +20,15 @@ export default defineEventHandler(async (event) => {
   // Soft-delete all entries in this space before removing the space itself
   await container.catalogRepo.trashBySpace(id)
   await container.catalogRepo.deleteSpace(id)
+
+  await container.activityService.record({
+    actorId: user.sub,
+    action: 'space.deleted',
+    objectId: id,
+    objectType: 'space',
+    objectName: space.name
+  })
+
   setResponseStatus(event, 204)
   return null
 })

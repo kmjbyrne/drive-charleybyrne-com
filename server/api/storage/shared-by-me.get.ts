@@ -27,10 +27,15 @@ export default defineEventHandler(async (event) => {
     const perms = permissions.filter(p => p.objectId === objectId)
     const objInvites = invites.filter(i => i.objectId === objectId)
 
-    // Resolve object name
+    // Resolve object details
     let name = objectId
     let ext: string | null = null
     let starred = false
+    let sizeBytes = 0
+    let blobKey: string | null = null
+    let mimeType: string | null = null
+    let modifiedAt: string = ''
+    let createdAt: string = ''
     let objectType = perms[0]?.objectType || objInvites[0]?.objectType || 'file'
 
     if (objectType === 'space') {
@@ -42,6 +47,11 @@ export default defineEventHandler(async (event) => {
         name = entry.name
         ext = entry.ext
         starred = entry.starred ?? false
+        sizeBytes = entry.sizeBytes
+        blobKey = entry.blobKey
+        mimeType = entry.mimeType
+        modifiedAt = entry.modifiedAt ? new Date(entry.modifiedAt).toISOString() : ''
+        createdAt = entry.createdAt ? new Date(entry.createdAt).toISOString() : ''
         objectType = entry.type === 'folder' ? 'folder' : 'file'
       }
     }
@@ -68,7 +78,7 @@ export default defineEventHandler(async (event) => {
       }))
     ]
 
-    results.push({ objectId, objectType, name, ext, starred, sharedWith })
+    results.push({ objectId, objectType, name, ext, starred, sizeBytes, blobKey, mimeType, modifiedAt, createdAt, sharedWith })
   }
 
   return results

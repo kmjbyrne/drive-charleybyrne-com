@@ -34,6 +34,14 @@ export default defineEventHandler(async (event) => {
     modifiedAt: new Date()
   })
 
+  await container.activityService.record({
+    actorId: user.sub,
+    action: 'folder.created',
+    objectId: entry.id,
+    objectType: 'folder',
+    objectName: entry.name
+  })
+
   setResponseStatus(event, 201)
   return entry
 })

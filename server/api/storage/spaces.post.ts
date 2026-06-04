@@ -21,6 +21,14 @@ export default defineEventHandler(async (event) => {
     createdAt: new Date()
   })
 
+  await container.activityService.record({
+    actorId: user.sub,
+    action: 'space.created',
+    objectId: space.id,
+    objectType: 'space',
+    objectName: space.name
+  })
+
   setResponseStatus(event, 201)
   return space
 })

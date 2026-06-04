@@ -50,6 +50,10 @@ const selectedId = ref<string | null>(null)
 const previewPinned = ref(true)
 const sidebarOpen = ref(false)
 const sidebarCollapsed = ref(false)
+
+// Multi-select state
+const selectedIds = ref<Set<string>>(new Set())
+const lastClickedId = ref<string | null>(null)
 export interface UploadItem {
   id: string
   fileName: string
@@ -84,6 +88,15 @@ const trashData = ref<ApiFileEntry[]>([])
 const trashLoading = ref(false)
 const sharedByMeData = ref<ApiFileEntry[]>([])
 const sharedByMeLoading = ref(false)
+const sharedWithMeData = ref<ApiFileEntry[]>([])
+const sharedWithMeLoading = ref(false)
+
+// During SSR, $fetch to internal server routes doesn't carry the browser's
+// cookies automatically. We need to forward them from the incoming request.
+function ssrHeaders(): Record<string, string> {
+  if (!import.meta.server) return {}
+  return useRequestHeaders(['cookie']) as Record<string, string>
+}
 
 export function useStorage() {
   const { data: spaces, refresh: refreshSpaces } = useFetch<ApiSpace[]>('/api/storage/spaces', {
@@ -99,6 +112,7 @@ export function useStorage() {
     filesLoading.value = true
     try {
       filesData.value = await $fetch<ApiFileEntry[]>('/api/storage/files', {
+        headers: ssrHeaders(),
         query: {
           spaceId: currentSpaceId.value,
           parentId: currentParentId.value || ''
@@ -112,7 +126,9 @@ export function useStorage() {
   async function refreshStarred() {
     starredLoading.value = true
     try {
-      starredData.value = await $fetch<ApiFileEntry[]>('/api/storage/starred')
+      starredData.value = await $fetch<ApiFileEntry[]>('/api/storage/starred', {
+        headers: ssrHeaders()
+      })
     } finally {
       starredLoading.value = false
     }
@@ -121,7 +137,9 @@ export function useStorage() {
   async function refreshRecent() {
     recentLoading.value = true
     try {
-      recentData.value = await $fetch<ApiFileEntry[]>('/api/storage/recent')
+      recentData.value = await $fetch<ApiFileEntry[]>('/api/storage/recent', {
+        headers: ssrHeaders()
+      })
     } finally {
       recentLoading.value = false
     }
@@ -129,13 +147,17 @@ export function useStorage() {
 
   async function refreshTagFiles() {
     if (!currentTagId.value) return
-    tagFilesData.value = await $fetch<ApiFileEntry[]>(`/api/storage/tags/${currentTagId.value}/files`)
+    tagFilesData.value = await $fetch<ApiFileEntry[]>(`/api/storage/tags/${currentTagId.value}/files`, {
+      headers: ssrHeaders()
+    })
   }
 
   async function refreshTrash() {
     trashLoading.value = true
     try {
-      trashData.value = await $fetch<ApiFileEntry[]>('/api/storage/trash')
+      trashData.value = await $fetch<ApiFileEntry[]>('/api/storage/trash', {
+        headers: ssrHeaders()
+      })
     } finally {
       trashLoading.value = false
     }
@@ -150,8 +172,15 @@ export function useStorage() {
         name: string
         ext: string | null
         starred: boolean
+        sizeBytes: number
+        blobKey: string | null
+        mimeType: string | null
+        modifiedAt: string
+        createdAt: string
         sharedWith: { email: string | null, role: string, pending: boolean }[]
-      }[]>('/api/storage/shared-by-me')
+      }[]>('/api/storage/shared-by-me', {
+        headers: ssrHeaders()
+      })
 
       sharedByMeData.value = raw.map(item => ({
         id: item.objectId,
@@ -159,19 +188,30 @@ export function useStorage() {
         spaceId: '',
         name: item.name,
         type: (item.objectType === 'folder' ? 'folder' : 'file') as 'folder' | 'file',
-        mimeType: null,
+        mimeType: item.mimeType,
         ext: item.ext,
-        sizeBytes: 0,
-        blobKey: null,
+        sizeBytes: item.sizeBytes,
+        blobKey: item.blobKey,
         ownerId: '',
         starred: item.starred,
         trashedAt: null,
-        createdAt: '',
-        modifiedAt: '',
+        createdAt: item.createdAt,
+        modifiedAt: item.modifiedAt,
         _sharedWith: item.sharedWith
       }))
     } finally {
       sharedByMeLoading.value = false
+    }
+  }
+
+  async function refreshSharedWithMe() {
+    sharedWithMeLoading.value = true
+    try {
+      sharedWithMeData.value = await $fetch<ApiFileEntry[]>('/api/storage/shared', {
+        headers: ssrHeaders()
+      })
+    } finally {
+      sharedWithMeLoading.value = false
     }
   }
 
@@ -185,7 +225,7 @@ export function useStorage() {
     } else if (special.value === 'recents' || special.value === 'home') {
       entries = recentData.value ?? []
     } else if (special.value === 'shared') {
-      return []
+      entries = sharedWithMeData.value ?? []
     } else if (special.value === 'shared-by-me') {
       entries = sharedByMeData.value ?? []
     } else if (special.value === 'trash') {
@@ -206,7 +246,7 @@ export function useStorage() {
     if (special.value === 'starred') return starredLoading.value && starredData.value.length === 0
     if (special.value === 'recents' || special.value === 'home') return recentLoading.value && recentData.value.length === 0
     if (special.value === 'trash') return trashLoading.value && trashData.value.length === 0
-    if (special.value === 'shared') return false
+    if (special.value === 'shared') return sharedWithMeLoading.value && sharedWithMeData.value.length === 0
     if (special.value === 'shared-by-me') return sharedByMeLoading.value && sharedByMeData.value.length === 0
     return filesLoading.value && filesData.value.length === 0
   })
@@ -256,6 +296,8 @@ export function useStorage() {
         await refreshRecent()
       } else if (routeSpecial === 'trash') {
         await refreshTrash()
+      } else if (routeSpecial === 'shared') {
+        await refreshSharedWithMe()
       } else if (routeSpecial === 'shared-by-me') {
         await refreshSharedByMe()
       }
@@ -440,6 +482,24 @@ export function useStorage() {
     )
   }
 
+  async function refreshActiveView() {
+    if (currentTagId.value) {
+      await refreshTagFiles()
+    } else if (special.value === 'recents' || special.value === 'home') {
+      await refreshRecent()
+    } else if (special.value === 'starred') {
+      await refreshStarred()
+    } else if (special.value === 'trash') {
+      await refreshTrash()
+    } else if (special.value === 'shared') {
+      await refreshSharedWithMe()
+    } else if (special.value === 'shared-by-me') {
+      await refreshSharedByMe()
+    } else {
+      await refreshFiles()
+    }
+  }
+
   function dismissUploadQueue() {
     uploadQueue.value = uploadQueue.value.filter(u => u.status === 'pending' || u.status === 'uploading')
   }
@@ -547,7 +607,41 @@ export function useStorage() {
       method: 'PATCH',
       body: { parentId: newParentId }
     })
-    await refreshFiles()
+    await refreshActiveView()
+  }
+
+  async function moveFiles(ids: string[], newParentId: string | null, spaceId?: string) {
+    // Optimistically remove from current view
+    const idSet = new Set(ids)
+    for (const list of [filesData, starredData, recentData, tagFilesData, sharedByMeData, trashData]) {
+      if (list.value) {
+        list.value = list.value.filter(e => !idSet.has(e.id))
+      }
+    }
+    clearSelection()
+
+    await Promise.all(
+      ids.map(id =>
+        $fetch(`/api/storage/files/${id}/move`, {
+          method: 'PATCH',
+          body: { parentId: newParentId, spaceId }
+        })
+      )
+    )
+    await refreshActiveView()
+  }
+
+  function downloadFiles(ids: string[]) {
+    const entries = items.value.filter(f => ids.includes(f.id) && f.blobKey)
+    for (const entry of entries) {
+      const url = `/api/storage/download?key=${encodeURIComponent(entry.blobKey!)}`
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `${entry.name}${entry.ext || ''}`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+    }
   }
 
   async function createTag(label: string, color: string) {
@@ -581,12 +675,73 @@ export function useStorage() {
     return $fetch<ApiTag[]>(`/api/storage/files/${fileId}/tags`)
   }
 
+  const multiSelectActive = computed(() => selectedIds.value.size > 0)
+
+  function toggleSelect(id: string) {
+    const next = new Set(selectedIds.value)
+    if (next.has(id)) {
+      next.delete(id)
+    } else {
+      next.add(id)
+    }
+    selectedIds.value = next
+    lastClickedId.value = id
+  }
+
+  function selectRange(id: string) {
+    const list = items.value
+    const lastIdx = lastClickedId.value
+      ? list.findIndex(f => f.id === lastClickedId.value)
+      : -1
+    const currentIdx = list.findIndex(f => f.id === id)
+    if (lastIdx === -1 || currentIdx === -1) {
+      toggleSelect(id)
+      return
+    }
+    const start = Math.min(lastIdx, currentIdx)
+    const end = Math.max(lastIdx, currentIdx)
+    const next = new Set(selectedIds.value)
+    for (let i = start; i <= end; i++) {
+      next.add(list[i]!.id)
+    }
+    selectedIds.value = next
+  }
+
+  function selectAll() {
+    selectedIds.value = new Set(items.value.map(f => f.id))
+  }
+
+  function clearSelection() {
+    selectedIds.value = new Set()
+    lastClickedId.value = null
+  }
+
+  async function deleteFiles(ids: string[]) {
+    // Optimistically remove from all data sources
+    const idSet = new Set(ids)
+    for (const list of [filesData, starredData, recentData, tagFilesData, sharedByMeData, trashData]) {
+      if (list.value) {
+        list.value = list.value.filter(e => !idSet.has(e.id))
+      }
+    }
+    if (selectedId.value && idSet.has(selectedId.value)) {
+      selectedId.value = null
+    }
+    clearSelection()
+
+    await Promise.all(
+      ids.map(id => $fetch(`/api/storage/files/${id}`, { method: 'DELETE' }))
+    )
+  }
+
   return {
     spaces,
     tags,
     special,
     viewMode,
     selectedId,
+    selectedIds,
+    multiSelectActive,
     items,
     previewPinned,
     sidebarOpen,
@@ -623,6 +778,13 @@ export function useStorage() {
     syncFromRoute,
     refreshSpaces,
     refreshFiles,
-    refreshTags
+    refreshTags,
+    toggleSelect,
+    selectRange,
+    selectAll,
+    clearSelection,
+    deleteFiles,
+    moveFiles,
+    downloadFiles
   }
 }

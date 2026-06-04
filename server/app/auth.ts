@@ -1,6 +1,17 @@
-import { createRemoteJWKSet, decodeJwt, jwtVerify } from 'jose'
+import { createRemoteJWKSet, jwtVerify } from 'jose'
 import type { JWTPayload } from 'jose'
 import type { H3Event } from 'h3'
+
+// How long the access token cookie lives before the browser discards it.
+// The JWT itself also expires after 1 hour on the Janus side, so this
+// just keeps the cookie in sync. After this window the user needs to
+// refresh or re-login.
+export const ACCESS_TOKEN_MAX_AGE = 60 * 60 // 1 hour in seconds
+
+// How long a refresh token stays valid. While this cookie exists the app
+// can silently obtain a new access token without sending the user back to
+// the login page. After 14 days of inactivity the user must log in again.
+export const REFRESH_TOKEN_MAX_AGE = 60 * 60 * 24 * 14 // 14 days in seconds
 
 export interface JanusUser {
   sub: string
@@ -28,36 +39,14 @@ export async function verifyToken(token: string): Promise<JanusUser | null> {
   const config = useRuntimeConfig()
 
   try {
-    const start = performance.now()
     const { payload } = await jwtVerify(token, getJWKS(), {
       issuer: 'janus',
       audience: config.janus.appIdentifier
     })
-    console.log('[auth] JWT verified in', Math.round(performance.now() - start), 'ms')
 
     return mapPayloadToUser(payload)
   } catch (err) {
     console.error('[auth] JWT verification failed:', (err as Error).message)
-    console.error('[auth] Expected audience:', config.janus.appIdentifier)
-    try {
-      const claims = decodeJwt(token)
-      console.error('[auth] Actual audience in token:', claims.aud)
-    } catch { /* ignore decode errors */ }
-
-    // Debug JWKS endpoint
-    try {
-      const base = config.janus.url.endsWith('/') ? config.janus.url : `${config.janus.url}/`
-      const jwksUrl = new URL('public/.well-known/jwks.json', base).toString()
-      console.error('[auth] Fetching JWKS from:', jwksUrl)
-      console.error('[auth] JANUS_URL config:', config.janus.url)
-      const res = await fetch(jwksUrl)
-      const text = await res.text()
-      console.error('[auth] JWKS response status:', res.status)
-      console.error('[auth] JWKS response content-type:', res.headers.get('content-type'))
-      console.error('[auth] JWKS response body (first 500 chars):', text.substring(0, 500))
-    } catch (fetchErr) {
-      console.error('[auth] JWKS fetch error:', (fetchErr as Error).message)
-    }
 
     return null
   }
@@ -89,12 +78,14 @@ export async function getUserFromRequest(event: H3Event): Promise<JanusUser | nu
   const config = useRuntimeConfig()
   if (config.authBypass && process.env.NODE_ENV !== 'production') return DEV_USER
 
-  const token = getCookie(event, 'auth-token')
-  if (!token) {
-    console.warn('[auth] No auth-token cookie found on request')
-    return null
-  }
-  console.log('[auth] Token found, verifying... (length:', token.length, ')')
+  // Prefer an explicit Authorization header (used by SSR after a refresh)
+  // over the cookie, since the cookie on the incoming request may be stale.
+  const authHeader = getHeader(event, 'authorization')
+  const token = authHeader?.startsWith('Bearer ')
+    ? authHeader.slice(7)
+    : getCookie(event, 'accessToken')
+
+  if (!token) return null
   return verifyToken(token)
 }
 

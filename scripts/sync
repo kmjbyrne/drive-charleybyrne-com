@@ -1,0 +1,347 @@
+#!/usr/bin/env node
+
+/**
+ * storage-sync — push local files to the storage app.
+ *
+ * Usage:
+ *   ./scripts/sync ~/Documents --base-url http://localhost:3000 --space-id <id>
+ *
+ * In dev mode (authBypass enabled) no token is needed. In production pass
+ * --token <jwt> or set STORAGE_AUTH_TOKEN.
+ */
+
+import { createHash } from 'node:crypto'
+import { readdir, readFile, stat, writeFile } from 'node:fs/promises'
+import { basename, extname, join, relative } from 'node:path'
+import { parseArgs } from 'node:util'
+
+// ---------------------------------------------------------------------------
+// CLI
+// ---------------------------------------------------------------------------
+
+const { values, positionals } = parseArgs({
+  allowPositionals: true,
+  options: {
+    'base-url': { type: 'string', default: 'http://localhost:3000' },
+    'space-id': { type: 'string' },
+    token: { type: 'string', default: process.env.STORAGE_AUTH_TOKEN },
+    'dry-run': { type: 'boolean', default: false },
+    help: { type: 'boolean', short: 'h', default: false }
+  }
+})
+
+if (values.help || positionals.length === 0) {
+  console.log(`
+Usage: sync <directory> [options]
+
+Options:
+  --base-url <url>    Server URL          (default: http://localhost:3000)
+  --space-id <id>     Target space ID     (required)
+  --token <jwt>       Auth token           (or STORAGE_AUTH_TOKEN env var)
+  --dry-run           Show what would sync without uploading
+  -h, --help          Show this help
+`)
+  process.exit(values.help ? 0 : 1)
+}
+
+const syncDir = positionals[0]
+const baseUrl = values['base-url'].replace(/\/+$/, '')
+const spaceId = values['space-id']
+const token = values.token || ''
+const dryRun = values['dry-run']
+
+if (!spaceId) {
+  console.error('Error: --space-id is required')
+  process.exit(1)
+}
+
+// ---------------------------------------------------------------------------
+// Manifest
+// ---------------------------------------------------------------------------
+
+const MANIFEST_PATH = join(syncDir, '.storage-sync.json')
+
+async function loadManifest() {
+  try {
+    const raw = await readFile(MANIFEST_PATH, 'utf-8')
+    return JSON.parse(raw)
+  } catch {
+    return {}
+  }
+}
+
+async function saveManifest(manifest) {
+  await writeFile(MANIFEST_PATH, JSON.stringify(manifest, null, 2))
+}
+
+// ---------------------------------------------------------------------------
+// Hashing
+// ---------------------------------------------------------------------------
+
+function hashBuffer(buf) {
+  return createHash('sha256').update(buf).digest('hex')
+}
+
+// ---------------------------------------------------------------------------
+// HTTP helpers
+// ---------------------------------------------------------------------------
+
+function headers() {
+  const h = {}
+  if (token) {
+    h['Cookie'] = `accessToken=${token}`
+  }
+  return h
+}
+
+async function apiGet(path) {
+  const url = `${baseUrl}${path}`
+  const res = await fetch(url, { headers: headers() })
+  if (!res.ok) {
+    throw new Error(`GET ${path} → ${res.status} ${res.statusText}`)
+  }
+  return res.json()
+}
+
+async function apiPost(path, body) {
+  const url = `${baseUrl}${path}`
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { ...headers(), 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
+  })
+  if (!res.ok) {
+    throw new Error(`POST ${path} → ${res.status} ${res.statusText}`)
+  }
+  return res.json()
+}
+
+async function uploadFile(filePath, parentId) {
+  const url = `${baseUrl}/api/storage/upload`
+  const data = await readFile(filePath)
+  const name = basename(filePath)
+
+  const boundary = `----SyncBoundary${Date.now()}`
+  const parts = []
+
+  // spaceId field
+  parts.push(
+    `--${boundary}\r\n` +
+    `Content-Disposition: form-data; name="spaceId"\r\n\r\n` +
+    `${spaceId}\r\n`
+  )
+
+  // parentId field
+  if (parentId) {
+    parts.push(
+      `--${boundary}\r\n` +
+      `Content-Disposition: form-data; name="parentId"\r\n\r\n` +
+      `${parentId}\r\n`
+    )
+  }
+
+  // file field
+  const ext = extname(name).slice(1)
+  const mimeMap = {
+    jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png',
+    gif: 'image/gif', webp: 'image/webp', svg: 'image/svg+xml',
+    pdf: 'application/pdf', doc: 'application/msword',
+    docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    xls: 'application/vnd.ms-excel',
+    xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    txt: 'text/plain', md: 'text/markdown', json: 'application/json',
+    csv: 'text/csv', mp3: 'audio/mpeg', mp4: 'video/mp4',
+    zip: 'application/zip', gz: 'application/gzip'
+  }
+  const contentType = mimeMap[ext.toLowerCase()] || 'application/octet-stream'
+
+  const fileHeader = Buffer.from(
+    `--${boundary}\r\n` +
+    `Content-Disposition: form-data; name="file"; filename="${name}"\r\n` +
+    `Content-Type: ${contentType}\r\n\r\n`
+  )
+  const fileFooter = Buffer.from(`\r\n--${boundary}--\r\n`)
+
+  const preamble = Buffer.from(parts.join(''))
+  const body = Buffer.concat([preamble, fileHeader, data, fileFooter])
+
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: {
+      ...headers(),
+      'Content-Type': `multipart/form-data; boundary=${boundary}`
+    },
+    body
+  })
+
+  if (!res.ok) {
+    const text = await res.text()
+    throw new Error(`Upload ${name} → ${res.status}: ${text}`)
+  }
+
+  return res.json()
+}
+
+// ---------------------------------------------------------------------------
+// Remote folder resolution
+// ---------------------------------------------------------------------------
+
+// Cache of remotePath → folderId
+const folderCache = new Map()
+
+async function ensureRemoteFolder(remotePath) {
+  if (!remotePath || remotePath === '.') return null
+  if (folderCache.has(remotePath)) return folderCache.get(remotePath)
+
+  const segments = remotePath.split('/')
+  let parentId = null
+
+  for (let i = 0; i < segments.length; i++) {
+    const partialPath = segments.slice(0, i + 1).join('/')
+    if (folderCache.has(partialPath)) {
+      parentId = folderCache.get(partialPath)
+      continue
+    }
+
+    const name = segments[i]
+
+    // Check if folder already exists
+    const children = await apiGet(
+      `/api/storage/files?spaceId=${spaceId}` +
+      (parentId ? `&parentId=${parentId}` : '')
+    )
+    const existing = children.find(
+      (c) => c.type === 'folder' && c.name === name
+    )
+
+    if (existing) {
+      parentId = existing.id
+    } else {
+      if (dryRun) {
+        console.log(`  [mkdir] ${partialPath}`)
+        // Use a placeholder so deeper paths still resolve in dry-run
+        parentId = `dry-run-${partialPath}`
+      } else {
+        const created = await apiPost('/api/storage/folders', {
+          name,
+          spaceId,
+          parentId
+        })
+        parentId = created.id
+        console.log(`  [mkdir] ${partialPath}`)
+      }
+    }
+    folderCache.set(partialPath, parentId)
+  }
+
+  return parentId
+}
+
+// ---------------------------------------------------------------------------
+// Directory walker
+// ---------------------------------------------------------------------------
+
+async function walkDir(dir) {
+  const results = []
+  const entries = await readdir(dir, { withFileTypes: true })
+
+  for (const entry of entries) {
+    const fullPath = join(dir, entry.name)
+
+    // Skip hidden files, the manifest, and common junk
+    if (entry.name.startsWith('.')) continue
+    if (entry.name === 'node_modules') continue
+    if (entry.name === 'Thumbs.db' || entry.name === '.DS_Store') continue
+
+    if (entry.isDirectory()) {
+      const nested = await walkDir(fullPath)
+      results.push(...nested)
+    } else if (entry.isFile()) {
+      results.push(fullPath)
+    }
+  }
+
+  return results
+}
+
+// ---------------------------------------------------------------------------
+// Main
+// ---------------------------------------------------------------------------
+
+async function main() {
+  console.log(`Syncing ${syncDir} → ${baseUrl} (space: ${spaceId})`)
+  if (dryRun) console.log('  (dry run — nothing will be uploaded)')
+  console.log()
+
+  // Verify connectivity and auth
+  try {
+    await apiGet(`/api/storage/files?spaceId=${spaceId}`)
+  } catch (err) {
+    console.error(`Cannot connect: ${err.message}`)
+    console.error('Check --base-url, --space-id, and --token')
+    process.exit(1)
+  }
+
+  const manifest = await loadManifest()
+  const files = await walkDir(syncDir)
+  let uploaded = 0
+  let skipped = 0
+  let failed = 0
+
+  for (const filePath of files) {
+    const rel = relative(syncDir, filePath)
+    const fileStat = await stat(filePath)
+    const data = await readFile(filePath)
+    const hash = hashBuffer(data)
+
+    // Check manifest — skip if unchanged
+    const prev = manifest[rel]
+    if (prev && prev.hash === hash && prev.size === fileStat.size) {
+      skipped++
+      continue
+    }
+
+    const dir = relative(syncDir, join(filePath, '..'))
+
+    try {
+      const parentId = await ensureRemoteFolder(dir)
+
+      if (dryRun) {
+        console.log(`  [upload] ${rel} (${formatBytes(fileStat.size)})`)
+      } else {
+        await uploadFile(filePath, parentId)
+        console.log(`  [upload] ${rel} (${formatBytes(fileStat.size)})`)
+      }
+
+      manifest[rel] = {
+        hash,
+        size: fileStat.size,
+        syncedAt: new Date().toISOString()
+      }
+      uploaded++
+    } catch (err) {
+      console.error(`  [error]  ${rel}: ${err.message}`)
+      failed++
+    }
+  }
+
+  if (!dryRun) {
+    await saveManifest(manifest)
+  }
+
+  console.log()
+  console.log(
+    `Done. ${uploaded} uploaded, ${skipped} unchanged, ${failed} failed.`
+  )
+}
+
+function formatBytes(bytes) {
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+}
+
+main().catch((err) => {
+  console.error(err)
+  process.exit(1)
+})

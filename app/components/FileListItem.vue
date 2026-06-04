@@ -4,6 +4,8 @@ import type { ApiFileEntry } from '~/composables/useStorage'
 const props = defineProps<{
   file: ApiFileEntry
   selected?: boolean
+  checked?: boolean
+  multiSelectActive?: boolean
   visibleColumns?: string[]
   gridStyle?: Record<string, string>
 }>()
@@ -11,8 +13,10 @@ const props = defineProps<{
 const emit = defineEmits<{
   select: [file: ApiFileEntry]
   open: [file: ApiFileEntry]
+  check: [file: ApiFileEntry, event: MouseEvent]
   manageTags: [file: ApiFileEntry]
   share: [file: ApiFileEntry]
+  editMetadata: [file: ApiFileEntry]
 }>()
 
 const { toggleStar, renameFile, deleteFile, createFolder } = useStorage()
@@ -84,6 +88,19 @@ const isMarkdown = computed(() => {
   return ext === '.md' || ext === '.mdx'
 })
 
+const isAudioFile = computed(() => {
+  const ext = props.file.ext?.toLowerCase()
+  return !!ext && ['.mp3', '.wav', '.ogg', '.flac', '.aac', '.m4a', '.wma'].includes(ext)
+})
+
+const {
+  visible: folderStatsVisible,
+  stats: folderStats,
+  loading: folderStatsLoading,
+  onMouseEnter: folderMouseEnter,
+  onMouseLeave: folderMouseLeave
+} = useFolderStats()
+
 const cols = computed(() => props.visibleColumns ?? ['members', 'modified', 'size'])
 
 const sharedWith = computed(() => {
@@ -95,15 +112,40 @@ const sharedWith = computed(() => {
 <template>
   <div
     :class="[
-      'group/row grid items-center px-3 py-2.5 border-b border-default/50 cursor-pointer rounded-md transition-colors',
-      selected ? 'bg-primary/5' : 'hover:bg-elevated'
+      'group/row grid items-center px-3 py-2.5 border-b border-default/50 cursor-pointer rounded-md transition-colors relative',
+      checked ? 'bg-primary/8' : selected ? 'bg-primary/5' : 'hover:bg-elevated'
     ]"
     :style="gridStyle"
     @click="emit('select', file)"
     @dblclick="emit('open', file)"
+    @mouseenter="isFolder && folderMouseEnter(file.id)"
+    @mouseleave="isFolder && folderMouseLeave()"
   >
+    <FolderHoverStats
+      v-if="isFolder"
+      :visible="folderStatsVisible"
+      :loading="folderStatsLoading"
+      :stats="folderStats"
+    />
     <!-- Name -->
     <div class="flex items-center gap-3 min-w-0">
+      <!-- Checkbox: visible when checked, multi-select active, or row hovered -->
+      <button
+        :class="[
+          'shrink-0 size-4 rounded border-2 flex items-center justify-center transition-colors cursor-pointer',
+          checked
+            ? 'bg-primary border-primary'
+            : 'border-muted hover:border-primary/60',
+          !checked && !multiSelectActive ? 'opacity-0 group-hover/row:opacity-100' : ''
+        ]"
+        @click.stop="emit('check', file, $event)"
+      >
+        <UIcon
+          v-if="checked"
+          name="i-lucide-check"
+          class="size-3 text-white"
+        />
+      </button>
       <FileIcon
         :type="deriveFileType(file.ext, file.type)"
         :ext="file.ext"
@@ -209,6 +251,7 @@ const sharedWith = computed(() => {
             { label: file.starred ? 'Unstar' : 'Star', icon: 'i-lucide-star', onSelect: () => handleToggleStar() },
             { label: 'Tags...', icon: 'i-lucide-tags', onSelect: () => emit('manageTags', file) },
             { label: 'Share...', icon: 'i-lucide-share-2', onSelect: () => emit('share', file) },
+            ...(isAudioFile ? [{ label: 'Edit metadata...', icon: 'i-lucide-music', onSelect: () => emit('editMetadata', file) }] : []),
             { label: 'Rename', icon: 'i-lucide-pencil', onSelect: () => startRename() }
           ],
           [

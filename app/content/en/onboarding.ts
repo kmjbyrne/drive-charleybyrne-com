@@ -63,5 +63,31 @@ export default {
     share: 'Share files with others',
     search: 'Search across all your files',
     viewMode: 'Switch between list, grid, and column views'
+  },
+  hints: {
+    sidebarSpaces: {
+      title: 'Organise with Spaces',
+      description: 'Create spaces to group your files by project, topic, or however you like.'
+    },
+    uploadFiles: {
+      title: 'Upload files',
+      description: 'Drag and drop files here, or click to browse your device.'
+    },
+    viewModes: {
+      title: 'Change your view',
+      description: 'Switch between list, grid, columns, or tree view to browse files your way.'
+    },
+    starFiles: {
+      title: 'Star for quick access',
+      description: 'Right-click any file and star it. Starred files appear in the sidebar for easy access.'
+    },
+    previewPanel: {
+      title: 'Preview files',
+      description: 'Click a file to see a preview without opening it. Images, audio, documents, and more.'
+    },
+    search: {
+      title: 'Search everything',
+      description: 'Quickly find files across all your spaces by name.'
+    }
   }
 }

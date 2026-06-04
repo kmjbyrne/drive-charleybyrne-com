@@ -9,6 +9,14 @@ defineProps<{
 const emit = defineEmits<{
   (e: 'select' | 'open', file: ApiFileEntry): void
 }>()
+
+const {
+  visible: folderStatsVisible,
+  stats: folderStats,
+  loading: folderStatsLoading,
+  onMouseEnter: folderMouseEnter,
+  onMouseLeave: folderMouseLeave
+} = useFolderStats()
 </script>
 
 <template>
@@ -18,14 +26,22 @@ const emit = defineEmits<{
         v-for="file in items"
         :key="file.id"
         :class="[
-          'rounded-xl border cursor-pointer transition-all p-3 flex flex-col gap-2.5',
+          'rounded-xl border cursor-pointer transition-all p-3 flex flex-col gap-2.5 relative',
           selectedId === file.id
             ? 'border-primary ring-1 ring-primary'
             : 'border-default hover:border-muted'
         ]"
         @click="emit('select', file)"
         @dblclick="emit('open', file)"
+        @mouseenter="file.type === 'folder' && folderMouseEnter(file.id)"
+        @mouseleave="file.type === 'folder' && folderMouseLeave()"
       >
+        <FolderHoverStats
+          v-if="file.type === 'folder'"
+          :visible="folderStatsVisible"
+          :loading="folderStatsLoading"
+          :stats="folderStats"
+        />
         <div class="h-24 rounded-lg bg-elevated flex items-center justify-center">
           <FileIcon
             :type="deriveFileType(file.ext, file.type)"

@@ -94,6 +94,12 @@ const specialItems = computed<NavigationMenuItem[]>(() => [
     to: '/trash',
     active: route.path === '/trash'
   },
+  {
+    label: 'Activity',
+    icon: 'i-lucide-activity',
+    to: '/activity',
+    active: route.path === '/activity'
+  },
   ...(props.collapsed
     ? [{
         label: 'Tags',
@@ -117,7 +123,15 @@ const specialItems = computed<NavigationMenuItem[]>(() => [
       v-if="!collapsed"
       class="px-3 pb-2.5"
     >
-      <UDashboardSearchButton class="w-full" />
+      <TooltipHint
+        hint-id="search"
+        :title="t.hints.search.title"
+        :description="t.hints.search.description"
+        icon="i-lucide-search"
+        side="right"
+      >
+        <UDashboardSearchButton class="w-full" />
+      </TooltipHint>
     </div>
 
     <!-- Navigation -->
@@ -218,10 +232,17 @@ const specialItems = computed<NavigationMenuItem[]>(() => [
         v-if="!collapsed"
         class="mt-4"
       >
-        <div class="flex items-center justify-between px-3 pb-1.5">
-          <span class="text-xs font-semibold text-dimmed uppercase tracking-wider">
-            Spaces
-          </span>
+        <TooltipHint
+          hint-id="sidebar-spaces"
+          :title="t.hints.sidebarSpaces.title"
+          :description="t.hints.sidebarSpaces.description"
+          icon="i-lucide-layers"
+          side="right"
+        >
+          <div class="flex items-center justify-between px-3 pb-1.5">
+            <span class="text-xs font-semibold text-dimmed uppercase tracking-wider">
+              Spaces
+            </span>
           <UPopover v-model:open="showNewSpace">
             <UButton
               icon="i-lucide-plus"
@@ -272,6 +293,7 @@ const specialItems = computed<NavigationMenuItem[]>(() => [
             </template>
           </UPopover>
         </div>
+        </TooltipHint>
 
         <div
           v-if="spaces.length === 0 && !showNewSpace"

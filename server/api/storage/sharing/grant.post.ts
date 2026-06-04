@@ -64,5 +64,24 @@ export default defineEventHandler(async (event) => {
     grantedBy: user.sub,
     createdAt: new Date()
   })
+
+  // Resolve the object name for the activity snapshot
+  let objectName = body.objectId
+  if (body.objectType === 'space') {
+    const space = await container.catalogRepo.getSpace(body.objectId)
+    if (space) objectName = space.name
+  } else {
+    const entry = await container.catalogRepo.getEntry(body.objectId)
+    if (entry) objectName = entry.name
+  }
+
+  await container.activityService.record({
+    actorId: user.sub,
+    action: 'share.invited',
+    objectId: body.objectId,
+    objectType: body.objectType,
+    objectName
+  })
+
   return { type: 'invited', invite }
 })

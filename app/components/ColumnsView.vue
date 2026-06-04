@@ -15,6 +15,14 @@ const emit = defineEmits<{
 
 const { moveFile } = useStorage()
 
+const {
+  visible: folderStatsVisible,
+  stats: folderStats,
+  loading: folderStatsLoading,
+  onMouseEnter: folderMouseEnter,
+  onMouseLeave: folderMouseLeave
+} = useFolderStats()
+
 interface Column {
   parentId: string | null
   parentName: string | null
@@ -242,7 +250,7 @@ watch(() => props.items, () => {
         v-for="entry in col.items"
         :key="entry.id"
         :class="[
-          'flex items-center gap-2 px-3 py-1.5 cursor-pointer text-sm transition-colors',
+          'flex items-center gap-2 px-3 py-1.5 cursor-pointer text-sm transition-colors relative',
           isSelected(entry, colIndex) ? 'bg-primary/10 text-default' : 'text-muted hover:bg-elevated',
           dropTargetId === entry.id ? 'ring-2 ring-primary ring-inset rounded' : '',
           dragEntryId === entry.id ? 'opacity-40' : ''
@@ -250,12 +258,20 @@ watch(() => props.items, () => {
         draggable="true"
         @click="handleClick(entry, colIndex)"
         @dblclick="handleDblClick(entry)"
+        @mouseenter="entry.type === 'folder' && folderMouseEnter(entry.id)"
+        @mouseleave="entry.type === 'folder' && folderMouseLeave()"
         @dragstart="onDragStart($event, entry, colIndex)"
         @dragend="onDragEnd"
         @dragover="onDragOver($event, entry)"
         @dragleave="onDragLeave($event, entry)"
         @drop.stop="onDrop($event, entry, colIndex)"
       >
+        <FolderHoverStats
+          v-if="entry.type === 'folder'"
+          :visible="folderStatsVisible"
+          :loading="folderStatsLoading"
+          :stats="folderStats"
+        />
         <FileIcon
           :type="deriveFileType(entry.ext, entry.type)"
           :ext="entry.ext"

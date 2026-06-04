@@ -81,7 +81,16 @@ const {
   refreshFiles,
   syncFromRoute,
   navigateToSpace,
-  navigateToFolder: _navigateToFolder
+  navigateToFolder: _navigateToFolder,
+  selectedIds,
+  multiSelectActive,
+  toggleSelect,
+  selectRange,
+  selectAll,
+  clearSelection,
+  deleteFiles,
+  moveFiles,
+  downloadFiles
 } = useStorage()
 
 // Session persistence
@@ -251,6 +260,18 @@ async function handleCreateFolder() {
 // Tag modal
 const tagModalRef = ref<{ show: (file: ApiFileEntry) => void } | null>(null)
 const shareModalRef = ref<{ show: (file: ApiFileEntry) => void } | null>(null)
+const moveModalRef = ref<{ show: () => void } | null>(null)
+
+async function handleBulkMove(parentId: string | null, spaceId: string) {
+  await moveFiles([...selectedIds.value], parentId, spaceId)
+}
+
+function handleBulkShare() {
+  // Share modal handles one file — open for the first selected
+  const firstId = [...selectedIds.value][0]
+  const entry = items.value.find(f => f.id === firstId)
+  if (entry) shareModalRef.value?.show(entry)
+}
 
 function openTagModal(file: ApiFileEntry) {
   tagModalRef.value?.show(file)
@@ -258,6 +279,13 @@ function openTagModal(file: ApiFileEntry) {
 
 function openShareModal(entry: ApiFileEntry) {
   shareModalRef.value?.show(entry)
+}
+
+function handleEditMetadata(entry: ApiFileEntry) {
+  // Select the file and open the preview panel
+  selectedEntry.value = entry
+  selectItem(entry)
+  previewPinned.value = true
 }
 
 // Markdown editor state
@@ -342,6 +370,19 @@ function handleOpen(entry: ApiFileEntry) {
   }
 }
 
+function handleCheck(entry: ApiFileEntry, event: MouseEvent) {
+  if (event.shiftKey) {
+    selectRange(entry.id)
+  } else {
+    toggleSelect(entry.id)
+  }
+}
+
+// Clear multi-select on navigation
+watch(slug, () => {
+  clearSelection()
+})
+
 const selectedEntry = ref<ApiFileEntry | null>(null)
 
 function handleSelect(entry: ApiFileEntry) {
@@ -349,8 +390,11 @@ function handleSelect(entry: ApiFileEntry) {
   selectItem(entry)
   if (isEditableText(entry.ext) && entry.blobKey) {
     openMarkdownDrawer(entry, 'view')
-  } else if (entry.type !== 'folder') {
-    previewPinned.value = true
+  } else {
+    closeEditor()
+    if (entry.type !== 'folder') {
+      previewPinned.value = true
+    }
   }
 }
 
@@ -482,7 +526,7 @@ function startPreviewResize(e: MouseEvent) {
           </template>
 
           <template #body>
-            <div class="flex flex-col min-h-full">
+            <div class="flex flex-col min-h-full @container">
               <div class="px-5 pt-5 pb-3">
                 <h1 class="text-xl font-bold text-default">
                   {{ title }}
@@ -541,7 +585,31 @@ function startPreviewResize(e: MouseEvent) {
                   class="grid px-3 py-2 text-xs font-semibold text-dimmed uppercase tracking-wider border-b border-default sticky top-0 bg-default z-10"
                   :style="listGridStyle"
                 >
-                  <span>Name</span>
+                  <div class="flex items-center gap-3">
+                    <button
+                      :class="[
+                        'shrink-0 size-4 rounded border-2 flex items-center justify-center transition-colors cursor-pointer',
+                        selectedIds.size === items.length && items.length > 0
+                          ? 'bg-primary border-primary'
+                          : 'border-muted hover:border-primary/60',
+                        !multiSelectActive ? 'opacity-0 group-hover:opacity-100' : ''
+                      ]"
+                      title="Select all"
+                      @click.stop="selectedIds.size === items.length && items.length > 0 ? clearSelection() : selectAll()"
+                    >
+                      <UIcon
+                        v-if="selectedIds.size === items.length && items.length > 0"
+                        name="i-lucide-check"
+                        class="size-3 text-white"
+                      />
+                      <UIcon
+                        v-else-if="selectedIds.size > 0"
+                        name="i-lucide-minus"
+                        class="size-3 text-white"
+                      />
+                    </button>
+                    <span>Name</span>
+                  </div>
                   <span v-if="visibleColumnKeys.includes('members')">Members</span>
                   <span v-if="visibleColumnKeys.includes('modified')">Modified</span>
                   <span v-if="visibleColumnKeys.includes('size')">Size</span>
@@ -567,12 +635,16 @@ function startPreviewResize(e: MouseEvent) {
                   :key="file.id"
                   :file="file"
                   :selected="selectedId === file.id"
+                  :checked="selectedIds.has(file.id)"
+                  :multi-select-active="multiSelectActive"
                   :visible-columns="visibleColumnKeys"
                   :grid-style="listGridStyle"
                   @select="handleSelect"
                   @open="handleOpen"
+                  @check="handleCheck"
                   @manage-tags="openTagModal"
                   @share="(f) => shareModalRef?.show(f)"
+                  @edit-metadata="handleEditMetadata"
                 />
 
                 <!-- Home: empty -->
@@ -581,7 +653,7 @@ function startPreviewResize(e: MouseEvent) {
                   class="py-8 px-2"
                 >
                   <!-- Quick actions -->
-                  <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-8">
+                  <div class="grid grid-cols-1 @sm:grid-cols-2 @lg:grid-cols-4 gap-3 mb-8">
                     <button
                       class="flex flex-col items-center gap-2 p-4 rounded-lg border border-default hover:border-primary/40 hover:bg-elevated transition-colors group"
                       @click="toolbarRef?.triggerUpload()"
@@ -663,8 +735,8 @@ function startPreviewResize(e: MouseEvent) {
 
                 <!-- Home: populated — quick actions above recent files -->
                 <template v-else-if="items.length > 0 && special === 'home'">
-                  <div class="px-2 pb-4">
-                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                  <div class="pt-4 pb-4">
+                    <div class="grid grid-cols-1 @sm:grid-cols-2 @lg:grid-cols-4 gap-3">
                       <button
                         class="flex items-center gap-2.5 p-3 rounded-lg border border-default hover:border-primary/40 hover:bg-elevated transition-colors group"
                         @click="toolbarRef?.triggerUpload()"
@@ -716,8 +788,8 @@ function startPreviewResize(e: MouseEvent) {
                     </div>
                   </div>
 
-                  <div class="px-5 pb-2">
-                    <h2 class="text-xs font-semibold text-dimmed uppercase tracking-wider">
+                  <div class="pb-2">
+                    <h2 class="text-xs font-semibold text-dimmed uppercase tracking-wider px-3">
                       Recent files
                     </h2>
                   </div>
@@ -930,10 +1002,138 @@ function startPreviewResize(e: MouseEvent) {
       :tags="tags"
     />
     <ShareModal ref="shareModalRef" />
+    <MoveToModal
+      ref="moveModalRef"
+      :spaces="spaces"
+      @move="handleBulkMove"
+    />
     <MediaViewerModal v-model:file="viewerFile" />
     <UploadProgress
       :queue="uploadQueue"
       @dismiss="dismissUploadQueue()"
     />
+
+    <!-- Bulk action bar -->
+    <Transition
+      enter-active-class="transition duration-200 ease-out"
+      enter-from-class="opacity-0 translate-y-4"
+      enter-to-class="opacity-100 translate-y-0"
+      leave-active-class="transition duration-150 ease-in"
+      leave-from-class="opacity-100 translate-y-0"
+      leave-to-class="opacity-0 translate-y-4"
+    >
+      <div
+        v-if="multiSelectActive"
+        class="fixed bottom-6 left-1/2 -translate-x-1/2 z-50"
+      >
+        <div class="bulk-bar">
+          <span class="text-sm font-semibold">
+            {{ selectedIds.size }} selected
+          </span>
+          <div class="w-px h-4 bg-white/15" />
+          <button
+            class="bulk-btn"
+            @click="selectAll()"
+          >
+            Select all
+          </button>
+          <button
+            class="bulk-btn"
+            @click="downloadFiles([...selectedIds])"
+          >
+            <UIcon
+              name="i-lucide-download"
+              class="size-3.5"
+            />
+            Download
+          </button>
+          <button
+            class="bulk-btn"
+            @click="moveModalRef?.show()"
+          >
+            <UIcon
+              name="i-lucide-folder-input"
+              class="size-3.5"
+            />
+            Move
+          </button>
+          <button
+            class="bulk-btn"
+            @click="handleBulkShare()"
+          >
+            <UIcon
+              name="i-lucide-share-2"
+              class="size-3.5"
+            />
+            Share
+          </button>
+          <button
+            class="bulk-btn bulk-btn-danger"
+            @click="deleteFiles([...selectedIds])"
+          >
+            <UIcon
+              name="i-lucide-trash-2"
+              class="size-3.5"
+            />
+            Delete
+          </button>
+          <button
+            class="bulk-btn"
+            title="Clear selection"
+            @click="clearSelection()"
+          >
+            <UIcon
+              name="i-lucide-x"
+              class="size-3.5"
+            />
+          </button>
+        </div>
+      </div>
+    </Transition>
   </div>
 </template>
+
+<style>
+.bulk-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  padding: 0.5rem 1rem;
+  border-radius: 0.75rem;
+  background: #1e293b;
+  color: #f1f5f9;
+  box-shadow:
+    0 10px 25px -5px rgb(0 0 0 / 0.3),
+    0 8px 10px -6px rgb(0 0 0 / 0.2);
+  border: 1px solid rgb(255 255 255 / 0.08);
+}
+
+.bulk-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.25rem 0.625rem;
+  border-radius: 0.375rem;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: #cbd5e1;
+  background: none;
+  border: none;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.bulk-btn:hover {
+  background: rgb(255 255 255 / 0.1);
+  color: #f8fafc;
+}
+
+.bulk-btn-danger {
+  color: #f87171;
+}
+
+.bulk-btn-danger:hover {
+  background: rgb(239 68 68 / 0.15);
+  color: #fca5a5;
+}
+</style>

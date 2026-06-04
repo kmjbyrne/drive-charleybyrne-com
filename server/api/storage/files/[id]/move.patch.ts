@@ -4,7 +4,8 @@ import { requireAuth } from '../../../../app/auth'
 import { requireAccess } from '../../../../app/guards'
 
 const bodySchema = z.object({
-  parentId: z.string().nullable()
+  parentId: z.string().nullable(),
+  spaceId: z.string().optional()
 })
 
 export default defineEventHandler(async (event) => {
@@ -23,10 +24,15 @@ export default defineEventHandler(async (event) => {
 
   const body = await readValidatedBody(event, bodySchema.parse)
 
-  const updated = await container.catalogRepo.updateEntry(id, {
+  const updates: Record<string, unknown> = {
     parentId: body.parentId,
     modifiedAt: new Date()
-  })
+  }
+  if (body.spaceId) {
+    updates.spaceId = body.spaceId
+  }
+
+  const updated = await container.catalogRepo.updateEntry(id, updates)
 
   if (!updated) {
     throw createError({ statusCode: 404, message: 'File not found' })
