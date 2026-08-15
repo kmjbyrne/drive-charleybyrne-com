@@ -1,3 +1,4 @@
+import type { Readable } from 'node:stream'
 import type {
   ListResult,
   ObjectInfo,
@@ -47,6 +48,17 @@ export interface IStorageRepository {
     body: Buffer | Uint8Array,
     contentType: string
   ): Promise<void>
+
+  /**
+   * Stream a file body to the storage backend without buffering it in memory.
+   * Returns the number of bytes written, which is only known once the stream
+   * has been consumed.
+   */
+  putStream(
+    key: string,
+    body: Readable,
+    contentType: string
+  ): Promise<number>
 
   /**
    * Create a zero-byte marker object to represent an empty folder.

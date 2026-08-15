@@ -1,6 +1,8 @@
-import { promises as fs } from 'node:fs'
+import { promises as fs, createWriteStream } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { createHash } from 'node:crypto'
+import { pipeline } from 'node:stream/promises'
+import type { Readable } from 'node:stream'
 import { lookup } from 'mime-types'
 import type { IStorageRepository } from '../../core/ports/repositories/storage.repository.port'
 import type {
@@ -91,6 +93,30 @@ export class LocalStorageRepository implements IStorageRepository {
     const filePath = join(this.basePath, key)
     await fs.mkdir(dirname(filePath), { recursive: true })
     await fs.writeFile(filePath, body)
+  }
+
+  async putStream(
+    key: string,
+    body: Readable,
+    _contentType: string
+  ): Promise<number> {
+    const filePath = join(this.basePath, key)
+    await fs.mkdir(dirname(filePath), { recursive: true })
+
+    let bytes = 0
+    body.on('data', (chunk: Buffer) => {
+      bytes += chunk.length
+    })
+
+    try {
+      await pipeline(body, createWriteStream(filePath))
+    } catch (err) {
+      // Don't leave a truncated blob behind on a failed or aborted upload
+      await fs.unlink(filePath).catch(() => {})
+      throw err
+    }
+
+    return bytes
   }
 
   async createFolder(key: string): Promise<void> {

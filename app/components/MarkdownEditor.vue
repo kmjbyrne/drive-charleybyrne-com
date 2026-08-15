@@ -311,12 +311,14 @@ async function onImageSelected(event: Event) {
     const { currentSpaceId, currentParentId } = useStorage()
     if (!currentSpaceId.value) return
 
+    // Metadata must precede the file: the server authorises the upload from
+    // these fields before the blob starts arriving.
     const formData = new FormData()
-    formData.append('file', file)
     formData.append('spaceId', currentSpaceId.value!)
     if (currentParentId.value) {
       formData.append('parentId', currentParentId.value)
     }
+    formData.append('file', file)
 
     const entry = await $fetch<{ blobKey: string, name: string, ext: string | null }>('/api/storage/upload', {
       method: 'POST',

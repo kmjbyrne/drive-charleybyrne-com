@@ -365,12 +365,14 @@ export function useStorage() {
 
   function uploadFileWithProgress(file: File, spaceId: string, parentId: string | null, itemId: string): Promise<void> {
     return new Promise((resolve, reject) => {
+      // Metadata must precede the file: the server streams the body and needs
+      // these fields to authorise before the blob starts arriving.
       const formData = new FormData()
-      formData.append('file', file)
       formData.append('spaceId', spaceId)
       if (parentId) {
         formData.append('parentId', parentId)
       }
+      formData.append('file', file)
 
       const xhr = new XMLHttpRequest()
       xhr.open('POST', '/api/storage/upload')

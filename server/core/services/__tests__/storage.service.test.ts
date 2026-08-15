@@ -5,6 +5,7 @@ import { migrate } from 'drizzle-orm/better-sqlite3/migrator'
 import * as schema from '../../../database/schema'
 import { SqliteCatalogRepository } from '../../../app/repositories/sqlite-catalog.repository'
 import { StorageService } from '../storage.service'
+import type { Readable } from 'node:stream'
 import type { IStorageRepository } from '../../ports/repositories/storage.repository.port'
 import type {
   ListResult,
@@ -42,6 +43,14 @@ class FakeStorageRepository implements IStorageRepository {
 
   async put(key: string, body: Buffer | Uint8Array, contentType: string): Promise<void> {
     this.blobs.set(key, { body, contentType })
+  }
+
+  async putStream(key: string, body: Readable, contentType: string): Promise<number> {
+    const chunks: Buffer[] = []
+    for await (const chunk of body) chunks.push(chunk as Buffer)
+    const buf = Buffer.concat(chunks)
+    this.blobs.set(key, { body: buf, contentType })
+    return buf.length
   }
 
   async createFolder(): Promise<void> {}

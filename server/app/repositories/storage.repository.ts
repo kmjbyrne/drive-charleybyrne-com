@@ -7,7 +7,9 @@ import {
   ListObjectsV2Command, GetObjectCommand
 } from '@aws-sdk/client-s3'
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
+import { Upload } from '@aws-sdk/lib-storage'
 import type { S3Client } from '@aws-sdk/client-s3'
+import type { Readable } from 'node:stream'
 import type { IStorageRepository } from '../../core/ports/repositories/storage.repository.port'
 import type {
   ListResult,
@@ -130,6 +132,32 @@ export class S3StorageRepository implements IStorageRepository {
       ContentType: contentType
     })
     await this.client.send(command)
+  }
+
+  async putStream(
+    key: string,
+    body: Readable,
+    contentType: string
+  ): Promise<number> {
+    let bytes = 0
+    body.on('data', (chunk: Buffer) => {
+      bytes += chunk.length
+    })
+
+    const upload = new Upload({
+      client: this.client,
+      params: {
+        Bucket: this.bucket,
+        Key: key,
+        Body: body,
+        ContentType: contentType
+      },
+      queueSize: 4,
+      partSize: 8 * 1024 * 1024
+    })
+
+    await upload.done()
+    return bytes
   }
 
   async createFolder(key: string): Promise<void> {

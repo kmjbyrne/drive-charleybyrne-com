@@ -1,3 +1,4 @@
+import type { Readable } from 'node:stream'
 import type { IStorageRepository } from '../ports/repositories/storage.repository.port'
 import type { ICatalogRepository } from '../ports/repositories/catalog.repository.port'
 import type {
@@ -101,12 +102,75 @@ export class StorageService {
     body: Buffer | Uint8Array
   }): Promise<FileEntry> {
     const { userId, spaceId, parentId, fileName, contentType, body } = params
-    const ext = fileName.includes('.') ? `.${fileName.split('.').pop()}` : null
-    const id = crypto.randomUUID()
-    const blobKey = this.buildKey(userId, `${spaceId}/${id}${ext || ''}`)
+    const { id, blobKey, ext } = this.buildBlobTarget(userId, spaceId, fileName)
 
     // Write blob to storage backend
     await this.storage.put(blobKey, body, contentType)
+
+    return this.recordUpload({
+      id,
+      blobKey,
+      ext,
+      userId,
+      spaceId,
+      parentId,
+      fileName,
+      contentType,
+      sizeBytes: body.byteLength
+    })
+  }
+
+  /**
+   * Upload a file by streaming it straight to the storage backend. Used for
+   * large bodies that must never be held in memory in full.
+   */
+  async uploadStream(params: {
+    userId: string
+    spaceId: string
+    parentId: string | null
+    fileName: string
+    contentType: string
+    body: Readable
+  }): Promise<FileEntry> {
+    const { userId, spaceId, parentId, fileName, contentType, body } = params
+    const { id, blobKey, ext } = this.buildBlobTarget(userId, spaceId, fileName)
+
+    const sizeBytes = await this.storage.putStream(blobKey, body, contentType)
+
+    return this.recordUpload({
+      id,
+      blobKey,
+      ext,
+      userId,
+      spaceId,
+      parentId,
+      fileName,
+      contentType,
+      sizeBytes
+    })
+  }
+
+  private buildBlobTarget(userId: string, spaceId: string, fileName: string) {
+    const ext = fileName.includes('.') ? `.${fileName.split('.').pop()}` : null
+    const id = crypto.randomUUID()
+    const blobKey = this.buildKey(userId, `${spaceId}/${id}${ext || ''}`)
+    return { id, blobKey, ext }
+  }
+
+  private async recordUpload(params: {
+    id: string
+    blobKey: string
+    ext: string | null
+    userId: string
+    spaceId: string
+    parentId: string | null
+    fileName: string
+    contentType: string
+    sizeBytes: number
+  }): Promise<FileEntry> {
+    const {
+      id, blobKey, ext, userId, spaceId, parentId, fileName, contentType, sizeBytes
+    } = params
 
     // Create catalog entry
     const now = new Date()
@@ -118,7 +182,7 @@ export class StorageService {
       type: 'file',
       mimeType: contentType,
       ext,
-      sizeBytes: body.byteLength,
+      sizeBytes,
       blobKey,
       ownerId: userId,
       starred: false,
