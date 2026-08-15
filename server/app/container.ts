@@ -10,6 +10,7 @@ import { SqliteActivityRepository } from './repositories/sqlite-activity.reposit
 import { StorageService } from '../core/services/storage.service'
 import { PermissionService } from '../core/services/permission.service'
 import { ActivityService } from '../core/services/activity.service'
+import { QuotaService } from '../core/services/quota.service'
 import { useDatabase } from '../database'
 import type { IStorageRepository } from '../core/ports/repositories/storage.repository.port'
 
@@ -73,6 +74,7 @@ function buildContainer() {
   return {
     storageService: new StorageService(storageRepo, catalogRepo, activityService),
     permissionService: new PermissionService(permissionRepo, catalogRepo, activityService),
+    quotaService: new QuotaService(catalogRepo, userRepo, config.storage.quotaBytes as number),
     activityService,
     catalogRepo,
     userRepo,

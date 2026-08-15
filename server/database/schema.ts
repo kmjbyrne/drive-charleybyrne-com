@@ -66,6 +66,8 @@ export const users = sqliteTable('users', {
   lastName: text('last_name').notNull(),
   avatar: text('avatar'),
   tid: text('tid').notNull(),
+  // NULL means "use the configured default"; a value overrides it for this user
+  quotaBytes: integer('quota_bytes'),
   lastSeenAt: integer('last_seen_at', { mode: 'timestamp' })
     .notNull()
     .$defaultFn(() => new Date())

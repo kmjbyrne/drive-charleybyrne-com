@@ -2,6 +2,7 @@ import { container } from '../../app/container'
 import { requireAuth } from '../../app/auth'
 import { requireAccess } from '../../app/guards'
 import { parseBoundary, parseMultipartStream } from '../../app/multipart-stream'
+import { createQuotaLimitStream, QuotaExceededError } from '../../app/quota-limit-stream'
 
 export default defineEventHandler(async (event) => {
   const user = await requireAuth(event)
@@ -9,6 +10,19 @@ export default defineEventHandler(async (event) => {
   const boundary = parseBoundary(getRequestHeader(event, 'content-type'))
   if (!boundary) {
     throw createError({ statusCode: 400, message: 'Expected multipart/form-data' })
+  }
+
+  const remaining = await container.quotaService.remainingBytes(user.sub)
+
+  // Reject an over-quota upload before reading the body when the client tells
+  // us how big it is. Content-Length is advisory, so the stream is capped too.
+  const declared = Number(getRequestHeader(event, 'content-length'))
+  if (Number.isFinite(declared) && declared > remaining) {
+    throw createError({
+      statusCode: 413,
+      message: 'Storage quota exceeded',
+      data: { remainingBytes: remaining }
+    })
   }
 
   // Stream the request rather than buffering it: h3's readMultipartFormData
@@ -41,12 +55,26 @@ export default defineEventHandler(async (event) => {
     throw err
   }
 
-  return container.storageService.uploadStream({
-    userId: user.sub,
-    spaceId,
-    parentId,
-    fileName: file.fileName,
-    contentType: file.contentType,
-    body: file.stream
-  })
+  // Cap the bytes actually received; a client may under-report Content-Length.
+  const limited = file.stream.pipe(createQuotaLimitStream(remaining))
+
+  try {
+    return await container.storageService.uploadStream({
+      userId: user.sub,
+      spaceId,
+      parentId,
+      fileName: file.fileName,
+      contentType: file.contentType,
+      body: limited
+    })
+  } catch (err) {
+    if (err instanceof QuotaExceededError) {
+      throw createError({
+        statusCode: 413,
+        message: 'Storage quota exceeded',
+        data: { remainingBytes: remaining }
+      })
+    }
+    throw err
+  }
 })

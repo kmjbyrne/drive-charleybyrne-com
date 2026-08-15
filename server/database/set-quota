@@ -1,0 +1,46 @@
+#!/usr/bin/env node
+/**
+ * Set or clear a user's storage quota.
+ *
+ * Usage:
+ *   tsx server/database/set-quota <email> <bytes|default>
+ *
+ * Examples:
+ *   tsx server/database/set-quota alice@example.com 53687091200   # 50GB
+ *   tsx server/database/set-quota alice@example.com default       # fall back to config
+ *
+ * There is no admin HTTP endpoint for this: the JWT carries a `permissions`
+ * array but nothing in the app defines an admin value for it yet, so a role
+ * check here would be a guess. Wire one up once that convention exists.
+ */
+import Database from 'better-sqlite3'
+import { resolve } from 'node:path'
+
+const [email, rawValue] = process.argv.slice(2)
+
+if (!email || !rawValue) {
+  console.error('Usage: set-quota <email> <bytes|default>')
+  process.exit(1)
+}
+
+const quota = rawValue === 'default' ? null : Number(rawValue)
+if (quota !== null && (!Number.isFinite(quota) || quota < 0)) {
+  console.error(`Invalid quota: ${rawValue}. Expected a non-negative number or "default".`)
+  process.exit(1)
+}
+
+const dbPath = process.env.DATABASE_PATH || resolve(process.cwd(), 'data', 'storage.db')
+const db = new Database(dbPath)
+
+const user = db.prepare('SELECT id, email FROM users WHERE email = ?').get(email)
+if (!user) {
+  console.error(`No user with email ${email}`)
+  process.exit(1)
+}
+
+db.prepare('UPDATE users SET quota_bytes = ? WHERE id = ?').run(quota, user.id)
+
+const shown = quota === null
+  ? 'the configured default'
+  : `${quota} bytes (${(quota / 1024 ** 3).toFixed(2)} GB)`
+console.info(`Set quota for ${user.email} to ${shown}`)

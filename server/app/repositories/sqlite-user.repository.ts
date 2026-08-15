@@ -87,6 +87,13 @@ export class SqliteUserRepository implements IUserRepository {
     return rows.map(r => this.toModel(r))
   }
 
+  async setQuota(id: string, quotaBytes: number | null): Promise<void> {
+    await this.db
+      .update(schema.users)
+      .set({ quotaBytes })
+      .where(eq(schema.users.id, id))
+  }
+
   private toModel(row: typeof schema.users.$inferSelect): LocalUser {
     return {
       id: row.id,
@@ -95,6 +102,7 @@ export class SqliteUserRepository implements IUserRepository {
       lastName: row.lastName,
       avatar: row.avatar,
       tid: row.tid,
+      quotaBytes: row.quotaBytes,
       lastSeenAt: row.lastSeenAt
     }
   }

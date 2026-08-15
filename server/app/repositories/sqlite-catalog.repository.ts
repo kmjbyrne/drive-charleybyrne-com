@@ -1,4 +1,4 @@
-import { eq, and, desc, isNull, isNotNull } from 'drizzle-orm'
+import { eq, and, desc, isNull, isNotNull, sum } from 'drizzle-orm'
 import type { BetterSQLite3Database } from 'drizzle-orm/better-sqlite3'
 import type { ICatalogRepository } from '../../core/ports/repositories/catalog.repository.port'
 import type {
@@ -329,6 +329,23 @@ export class SqliteCatalogRepository implements ICatalogRepository {
           eq(schema.fileMembers.userId, member.userId)
         )
       )
+  }
+
+  // -- Usage --
+
+  async getUsedBytes(ownerId: string): Promise<number> {
+    const row = this.db
+      .select({ total: sum(schema.fileEntries.sizeBytes) })
+      .from(schema.fileEntries)
+      .where(
+        and(
+          eq(schema.fileEntries.ownerId, ownerId),
+          eq(schema.fileEntries.type, 'file'),
+          isNull(schema.fileEntries.trashedAt)
+        )
+      )
+      .get()
+    return Number(row?.total ?? 0)
   }
 
   async getFileMembers(fileId: string): Promise<string[]> {

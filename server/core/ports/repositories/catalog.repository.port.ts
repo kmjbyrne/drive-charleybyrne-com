@@ -29,6 +29,9 @@ export interface ICatalogRepository {
   listStarred(ownerId: string): Promise<FileEntry[]>
   listRecent(ownerId: string, limit: number): Promise<FileEntry[]>
 
+  // Usage
+  getUsedBytes(ownerId: string): Promise<number>
+
   // Tags
   createTag(tag: Tag): Promise<Tag>
   listTags(ownerId: string): Promise<Tag[]>

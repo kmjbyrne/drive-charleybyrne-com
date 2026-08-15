@@ -1,0 +1,1 @@
+ALTER TABLE `users` ADD `quota_bytes` integer;
