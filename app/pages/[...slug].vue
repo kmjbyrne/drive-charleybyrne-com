@@ -415,6 +415,13 @@ const showPreview = computed(
 
 const canCreate = computed(() => !!currentSpaceId.value || spaces.value.length > 0)
 
+// Read-only views have nowhere to put a dropped file
+const canDrop = computed(
+  () => canCreate.value && !['trash', 'shared', 'shared-by-me'].includes(special.value ?? '')
+)
+
+const { active: dropActive } = useFileDrop(files => uploadFiles(files), canDrop)
+
 // Track onboarding milestones
 watch(uploading, (current, prev) => {
   // Fires when an upload finishes
@@ -1012,6 +1019,26 @@ function startPreviewResize(e: MouseEvent) {
       :queue="uploadQueue"
       @dismiss="dismissUploadQueue()"
     />
+
+    <Transition
+      enter-active-class="transition-opacity duration-150"
+      leave-active-class="transition-opacity duration-150"
+      enter-from-class="opacity-0"
+      leave-to-class="opacity-0"
+    >
+      <div
+        v-if="dropActive"
+        class="fixed inset-0 z-[100] flex items-center justify-center bg-default/70 backdrop-blur-xs pointer-events-none"
+      >
+        <div class="flex flex-col items-center gap-3 rounded-2xl border-2 border-dashed border-primary bg-default px-10 py-8 shadow-lg">
+          <UIcon
+            name="i-lucide-upload-cloud"
+            class="size-9 text-primary"
+          />
+          <span class="text-base font-semibold text-highlighted">Drop files to upload</span>
+        </div>
+      </div>
+    </Transition>
 
     <!-- Bulk action bar -->
     <Transition
